@@ -2,7 +2,23 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, ReactNode, useContext, useEffect, useRef, useState } from 'react';
 
-import { dailyMissions, FAST_CHALLENGES, fastEnd, levelFromXp, Player, today } from './game';
+import {
+  currentWeight,
+  dailyMissions,
+  exerciseById,
+  FAST_CHALLENGES,
+  fastEnd,
+  levelFromXp,
+  Player,
+  today,
+  withProgress,
+  WORKOUT_MIN_MINUTES,
+  WORKOUT_XP,
+  workoutCalories,
+  WorkoutMode,
+  WorkoutRecord,
+  WorkoutSet,
+} from './game';
 import { setupReminders, syncReminders } from './reminders';
 
 const STORAGE_KEY = 'despertar:player';
@@ -16,6 +32,11 @@ type PlayerContextValue = {
   logWeight: (kg: number) => void;
   startFast: (goalHours: number) => void;
   endFast: () => { success: boolean; leveledUp: boolean; level: number };
+  startWorkout: (mode: WorkoutMode) => void;
+  logSet: (set: WorkoutSet) => { leveledUp: boolean; level: number };
+  removeSet: (index: number) => void;
+  finishWorkout: () => { record: WorkoutRecord; leveledUp: boolean; level: number } | null;
+  cancelWorkout: () => void;
 };
 
 const PlayerContext = createContext<PlayerContextValue | null>(null);
@@ -40,7 +61,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
             ]),
           );
         }
-        setPlayer({ fast: null, fasts: [], ...saved });
+        setPlayer({ fast: null, fasts: [], workout: null, workouts: [], ...saved });
       })
       .finally(() => setLoading(false));
   }, []);
@@ -73,35 +94,16 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       completed: {},
       fast: null,
       fasts: [],
+      workout: null,
+      workouts: [],
     });
   }
 
-  // Define o progresso de hoje numa missão. Ao bater a meta ganha XP e +1 no atributo;
-  // se voltar abaixo da meta, perde de novo.
   function setProgress(missionId: string, value: number) {
     if (!player) return { leveledUp: false, level: 1 };
-    const mission = dailyMissions(player).find((m) => m.id === missionId)!;
-    const day = today();
-    const before = player.progress[day]?.[missionId] ?? 0;
-    const after = Math.max(0, value);
-    const wasDone = before >= mission.target;
-    const nowDone = after >= mission.target;
-    const sign = nowDone === wasDone ? 0 : nowDone ? 1 : -1;
-    const done = player.completed[day] ?? [];
-
-    const next: Player = {
-      ...player,
-      xp: Math.max(0, player.xp + sign * mission.xp),
-      attributes: { ...player.attributes, [mission.attribute]: player.attributes[mission.attribute] + sign },
-      progress: { ...player.progress, [day]: { ...player.progress[day], [missionId]: after } },
-      completed: {
-        ...player.completed,
-        [day]: nowDone ? [...done.filter((id) => id !== missionId), missionId] : done.filter((id) => id !== missionId),
-      },
-    };
+    const next = withProgress(player, missionId, value);
     save(next);
-    const level = levelFromXp(next.xp);
-    return { leveledUp: level > levelFromXp(player.xp), level };
+    return levelChange(player, next);
   }
 
   function addProgress(missionId: string, amount: number) {
@@ -134,15 +136,91 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       fasts: [...player.fasts, { ...player.fast, end, success }],
     };
     save(next);
-    const level = levelFromXp(next.xp);
-    return { success, leveledUp: level > levelFromXp(player.xp), level };
+    return { success, ...levelChange(player, next) };
+  }
+
+  function startWorkout(mode: WorkoutMode) {
+    if (!player || player.workout) return;
+    save({ ...player, workout: { mode, start: Date.now(), sets: [] } });
+  }
+
+  // Séries de exercícios ligados a missões (flexão, abdominal, agachamento) somam na missão do dia.
+  function changeMission(p: Player, set: WorkoutSet, sign: 1 | -1) {
+    const missionId = exerciseById(set.exerciseId).missionId;
+    if (!missionId) return p;
+    return withProgress(p, missionId, (p.progress[today()]?.[missionId] ?? 0) + sign * set.value);
+  }
+
+  function logSet(set: WorkoutSet) {
+    if (!player?.workout) return { leveledUp: false, level: 1 };
+    const withSet = { ...player, workout: { ...player.workout, sets: [...player.workout.sets, set] } };
+    const next = changeMission(withSet, set, 1);
+    save(next);
+    return levelChange(player, next);
+  }
+
+  function removeSet(index: number) {
+    if (!player?.workout) return;
+    const set = player.workout.sets[index];
+    const sets = player.workout.sets.filter((_, i) => i !== index);
+    save(changeMission({ ...player, workout: { ...player.workout, sets } }, set, -1));
+  }
+
+  // Treino de 15 min ou mais dá XP e +1 Força (no máximo um por dia).
+  function finishWorkout() {
+    if (!player?.workout) return null;
+    const end = Date.now();
+    const minutes = (end - player.workout.start) / 60_000;
+    const alreadyToday = player.workouts.some((w) => w.xp > 0 && new Date(w.start).toDateString() === new Date().toDateString());
+    const xp = minutes >= WORKOUT_MIN_MINUTES && !alreadyToday ? WORKOUT_XP : 0;
+    const record: WorkoutRecord = {
+      ...player.workout,
+      end,
+      kcal: workoutCalories(player.workout, end, currentWeight(player)),
+      xp,
+    };
+    const next: Player = {
+      ...player,
+      xp: player.xp + xp,
+      attributes: { ...player.attributes, forca: player.attributes.forca + (xp ? 1 : 0) },
+      workout: null,
+      workouts: [...player.workouts, record],
+    };
+    save(next);
+    return { record, ...levelChange(player, next) };
+  }
+
+  // Cancelar descarta a sessão e desfaz o que ela tinha somado nas missões.
+  function cancelWorkout() {
+    if (!player?.workout) return;
+    const reverted = player.workout.sets.reduce((p, set) => changeMission(p, set, -1), player);
+    save({ ...reverted, workout: null });
   }
 
   return (
-    <PlayerContext.Provider value={{ player, loading, awaken, addProgress, setProgress, logWeight, startFast, endFast }}>
+    <PlayerContext.Provider value={{
+        player,
+        loading,
+        awaken,
+        addProgress,
+        setProgress,
+        logWeight,
+        startFast,
+        endFast,
+        startWorkout,
+        logSet,
+        removeSet,
+        finishWorkout,
+        cancelWorkout,
+      }}>
       {children}
     </PlayerContext.Provider>
   );
+}
+
+function levelChange(before: Player, after: Player) {
+  const level = levelFromXp(after.xp);
+  return { leveledUp: level > levelFromXp(before.xp), level };
 }
 
 export function usePlayer() {

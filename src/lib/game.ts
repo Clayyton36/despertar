@@ -37,6 +37,9 @@ export type Player = {
   // jejum em andamento (horários em milissegundos) e histórico dos anteriores
   fast: { start: number; goalHours: number } | null;
   fasts: FastRecord[];
+  // treino em andamento e histórico
+  workout: ActiveWorkout | null;
+  workouts: WorkoutRecord[];
 };
 
 export type FastRecord = { start: number; end: number; goalHours: number; success: boolean };
@@ -174,4 +177,101 @@ export function streak(player: Player) {
     d.setDate(d.getDate() - 1);
   }
   return count;
+}
+
+// Define o progresso de hoje numa missão. Ao bater a meta ganha XP e +1 no atributo;
+// se voltar abaixo da meta, perde de novo.
+export function withProgress(player: Player, missionId: string, value: number): Player {
+  const mission = dailyMissions(player).find((m) => m.id === missionId)!;
+  const day = today();
+  const before = player.progress[day]?.[missionId] ?? 0;
+  const after = Math.max(0, value);
+  const wasDone = before >= mission.target;
+  const nowDone = after >= mission.target;
+  const sign = nowDone === wasDone ? 0 : nowDone ? 1 : -1;
+  const done = (player.completed[day] ?? []).filter((id) => id !== missionId);
+
+  return {
+    ...player,
+    xp: Math.max(0, player.xp + sign * mission.xp),
+    attributes: { ...player.attributes, [mission.attribute]: player.attributes[mission.attribute] + sign },
+    progress: { ...player.progress, [day]: { ...player.progress[day], [missionId]: after } },
+    completed: { ...player.completed, [day]: nowDone ? [...done, missionId] : done },
+  };
+}
+
+// ---------- Treinos ----------
+
+export type WorkoutMode = 'casa' | 'academia';
+
+export type Exercise = {
+  id: string;
+  name: string;
+  mode: WorkoutMode;
+  // 'reps' = repetições, 'carga' = repetições + kg, 'minutos' = cardio, 'segundos' = prancha
+  kind: 'reps' | 'carga' | 'minutos' | 'segundos';
+  // missão diária que esse exercício alimenta
+  missionId?: string;
+  // MET usado só para cardio (minutos registrados à parte do tempo da sessão)
+  met?: number;
+};
+
+export const EXERCISES: Exercise[] = [
+  { id: 'flexao', name: 'Flexão', mode: 'casa', kind: 'reps', missionId: 'flexoes' },
+  { id: 'abdominal', name: 'Abdominal', mode: 'casa', kind: 'reps', missionId: 'abdominais' },
+  { id: 'agachamento', name: 'Agachamento', mode: 'casa', kind: 'reps', missionId: 'agachamentos' },
+  { id: 'afundo', name: 'Afundo', mode: 'casa', kind: 'reps' },
+  { id: 'polichinelo', name: 'Polichinelo', mode: 'casa', kind: 'reps' },
+  { id: 'burpee', name: 'Burpee', mode: 'casa', kind: 'reps' },
+  { id: 'prancha', name: 'Prancha', mode: 'casa', kind: 'segundos' },
+  { id: 'supino', name: 'Supino', mode: 'academia', kind: 'carga' },
+  { id: 'agachamento-livre', name: 'Agachamento livre', mode: 'academia', kind: 'carga', missionId: 'agachamentos' },
+  { id: 'leg-press', name: 'Leg press', mode: 'academia', kind: 'carga' },
+  { id: 'puxada', name: 'Puxada', mode: 'academia', kind: 'carga' },
+  { id: 'remada', name: 'Remada', mode: 'academia', kind: 'carga' },
+  { id: 'desenvolvimento', name: 'Desenvolvimento', mode: 'academia', kind: 'carga' },
+  { id: 'rosca', name: 'Rosca direta', mode: 'academia', kind: 'carga' },
+  { id: 'triceps', name: 'Tríceps polia', mode: 'academia', kind: 'carga' },
+  { id: 'abdominal-academia', name: 'Abdominal', mode: 'academia', kind: 'reps', missionId: 'abdominais' },
+  { id: 'esteira-caminhada', name: 'Esteira (caminhada)', mode: 'academia', kind: 'minutos', met: 4.3 },
+  { id: 'esteira-corrida', name: 'Esteira (corrida)', mode: 'academia', kind: 'minutos', met: 8.3 },
+  { id: 'bicicleta', name: 'Bicicleta', mode: 'academia', kind: 'minutos', met: 7.0 },
+];
+
+export function exerciseById(id: string) {
+  return EXERCISES.find((e) => e.id === id)!;
+}
+
+// value = repetições, minutos ou segundos, conforme o tipo do exercício
+export type WorkoutSet = { exerciseId: string; value: number; kg?: number };
+
+export type ActiveWorkout = { mode: WorkoutMode; start: number; sets: WorkoutSet[] };
+export type WorkoutRecord = ActiveWorkout & { end: number; kcal: number; xp: number };
+
+// MET médio da sessão (fora o cardio): calistenia moderada ~3,8; musculação ~5,0.
+const SESSION_MET: Record<WorkoutMode, number> = { casa: 3.8, academia: 5.0 };
+export const WORKOUT_XP = 30;
+export const WORKOUT_MIN_MINUTES = 15;
+
+// calorias = MET × peso (kg) × horas. Os minutos de cardio usam o MET do próprio aparelho.
+export function workoutCalories(workout: ActiveWorkout, end: number, weightKg: number) {
+  const totalMin = (end - workout.start) / 60_000;
+  let cardioMin = 0;
+  let cardioKcal = 0;
+  for (const set of workout.sets) {
+    const ex = exerciseById(set.exerciseId);
+    if (ex.kind === 'minutos' && ex.met) {
+      cardioMin += set.value;
+      cardioKcal += ex.met * weightKg * (set.value / 60);
+    }
+  }
+  const restMin = Math.max(0, totalMin - cardioMin);
+  return Math.round(cardioKcal + SESSION_MET[workout.mode] * weightKg * (restMin / 60));
+}
+
+export function setText(set: WorkoutSet) {
+  const ex = exerciseById(set.exerciseId);
+  if (ex.kind === 'minutos') return `${set.value} min`;
+  if (ex.kind === 'segundos') return `${set.value} s`;
+  return set.kg ? `${set.value} × ${set.kg} kg` : `${set.value} reps`;
 }

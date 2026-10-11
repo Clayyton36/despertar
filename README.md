@@ -10,6 +10,7 @@ App Android para criar hábitos saudáveis e perder peso, inspirado no "Sistema"
 - **Dificuldade progressiva:** as metas de treino aumentam conforme o nível
 - **Jejum intermitente:** desafios de 12h a 18h liberados aos poucos, timer, notificações de metade e fim, histórico
 - **Passos automáticos:** leitura dos passos do dia pelo Health Connect (Google Fit, Samsung Health etc.), com calorias e distância estimadas
+- **Treinos em casa e na academia:** cronômetro, séries com repetições/carga/minutos, calorias pela fórmula MET, XP e histórico; flexões, abdominais e agachamentos somam nas missões
 - **Lembretes do Sistema:** notificações de água, refeições, treino e sono que cobram exatamente o que falta
 
 ## Tecnologias
@@ -32,5 +33,4 @@ Os lembretes precisam do build de desenvolvimento (`npx eas-cli build --platform
 
 ## Próximos passos
 
-- Treinos em casa e na academia
 - Gráficos de evolução e conquistas

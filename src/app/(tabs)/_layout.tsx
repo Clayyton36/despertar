@@ -29,6 +29,10 @@ export default function TabLayout() {
         options={{ title: 'Missões', tabBarIcon: ({ color }) => <FontAwesome size={24} name="list-ul" color={color} /> }}
       />
       <Tabs.Screen
+        name="treinos"
+        options={{ title: 'Treinos', tabBarIcon: ({ color }) => <FontAwesome size={24} name="heartbeat" color={color} /> }}
+      />
+      <Tabs.Screen
         name="jejum"
         options={{ title: 'Jejum', tabBarIcon: ({ color }) => <FontAwesome size={24} name="hourglass-half" color={color} /> }}
       />

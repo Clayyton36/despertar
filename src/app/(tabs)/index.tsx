@@ -9,11 +9,13 @@ import {
   ATTRIBUTE_LABELS,
   bmi,
   currentWeight,
+  dateKey,
   levelFromXp,
   missionProgress,
   rankFromLevel,
   stepCalories,
   streak,
+  today,
   xpForLevel,
 } from '@/lib/game';
 import { usePlayer } from '@/lib/player';
@@ -32,6 +34,9 @@ export default function Status() {
   const weight = currentWeight(player);
   const lost = player.startWeightKg - weight;
   const toGo = weight - player.goalWeightKg;
+  const burnedToday =
+    stepCalories(missionProgress(player, 'passos'), weight) +
+    player.workouts.filter((w) => dateKey(new Date(w.start)) === today()).reduce((sum, w) => sum + w.kcal, 0);
 
   function saveWeight() {
     const kg = Number(newWeight.replace(',', '.'));
@@ -70,7 +75,7 @@ export default function Status() {
           <Row label="Já perdeu" value={`${lost.toFixed(1)} kg`} highlight={lost > 0} />
           <Row label="Falta" value={`${Math.max(0, toGo).toFixed(1)} kg`} />
           <Row label="IMC" value={bmi(weight, player.heightCm).toFixed(1)} />
-          <Row label="Gasto hoje (passos)" value={`~${stepCalories(missionProgress(player, 'passos'), weight)} kcal`} />
+          <Row label="Gasto hoje (passos + treinos)" value={`~${burnedToday} kcal`} />
 
           <View style={styles.weightRow}>
             <TextInput
