@@ -37,7 +37,11 @@ npm install
 npx expo start --dev-client
 ```
 
-Os lembretes precisam do build de desenvolvimento (`npx eas-cli build --platform android --profile development`), pois o Expo Go no Android não inclui notificações.
+O app usa módulos nativos (notificações, Health Connect, SVG, arquivos), então roda num **build de desenvolvimento**, não no Expo Go:
 
-## Próximos passos
+```bash
+npx eas-cli build --platform android --profile development   # APK de desenvolvimento (conecta no servidor local)
+npx eas-cli build --platform android --profile preview       # APK final, funciona sozinho
+```
 
+Os passos automáticos precisam de um app que registre passos no Health Connect (Google Fit, Samsung Health etc.).
