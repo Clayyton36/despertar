@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ColumnChart, LineChart, Point } from '@/components/Charts';
 import { SystemPanel } from '@/components/SystemPanel';
 import {
+  ACHIEVEMENTS,
   currentWeight,
   dailyMissions,
   dateKey,
@@ -105,6 +106,29 @@ export default function Evolucao() {
         </SystemPanel>
 
         <Text style={styles.footnote}>Toque num ponto ou coluna para ver o valor do dia.</Text>
+
+        <SystemPanel title="CONQUISTAS">
+          <Text style={styles.caption}>
+            {Object.keys(player.achievements).length} de {ACHIEVEMENTS.length} desbloqueadas
+          </Text>
+          <View style={styles.badges}>
+            {ACHIEVEMENTS.map((a) => {
+              const at = player.achievements[a.id];
+              return (
+                <View key={a.id} style={[styles.badge, !at && styles.badgeLocked]}>
+                  <Text style={styles.badgeIcon}>{at ? a.icon : '🔒'}</Text>
+                  <Text style={styles.badgeTitle}>{a.title}</Text>
+                  <Text style={styles.badgeDetail}>{a.detail}</Text>
+                  {at ? (
+                    <Text style={styles.badgeDate}>{new Date(at).toLocaleDateString('pt-BR')}</Text>
+                  ) : (
+                    a.xp > 0 && <Text style={styles.badgeDate}>+{a.xp} XP</Text>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+        </SystemPanel>
       </ScrollView>
     </SafeAreaView>
   );
@@ -133,5 +157,20 @@ const styles = StyleSheet.create({
   tileLabel: { color: colors.muted, fontSize: 11, textAlign: 'center', marginTop: 2 },
   caption: { color: colors.muted, fontSize: 12, textAlign: 'center', marginTop: -6, marginBottom: 8 },
   empty: { color: colors.muted, textAlign: 'center' },
+  badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  badge: {
+    width: '48%',
+    flexGrow: 1,
+    borderWidth: 1,
+    borderColor: colors.gold,
+    borderRadius: 4,
+    padding: 10,
+    alignItems: 'center',
+  },
+  badgeLocked: { borderColor: '#1A2540', opacity: 0.55 },
+  badgeIcon: { fontSize: 26 },
+  badgeTitle: { color: colors.text, fontWeight: '700', textAlign: 'center', marginTop: 4 },
+  badgeDetail: { color: colors.muted, fontSize: 11, textAlign: 'center', marginTop: 2 },
+  badgeDate: { color: colors.muted, fontSize: 10, marginTop: 4 },
   footnote: { color: colors.muted, fontSize: 12, textAlign: 'center', marginBottom: 16 },
 });

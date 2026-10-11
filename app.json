@@ -18,7 +18,8 @@
       },
       "package": "com.clayyton36.despertar",
       "permissions": [
-        "android.permission.health.READ_STEPS"
+        "android.permission.health.READ_STEPS",
+        "android.permission.VIBRATE"
       ]
     },
     "web": {

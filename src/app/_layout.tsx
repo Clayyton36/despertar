@@ -1,6 +1,7 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 
+import { SystemAlert } from '@/components/SystemAlert';
 import { PlayerProvider } from '@/lib/player';
 import { colors } from '@/lib/theme';
 
@@ -9,6 +10,7 @@ export default function RootLayout() {
     <PlayerProvider>
       <StatusBar style="light" />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }} />
+      <SystemAlert />
     </PlayerProvider>
   );
 }

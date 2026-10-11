@@ -1,8 +1,11 @@
 // Estado do jogador, compartilhado entre as telas e salvo no próprio celular.
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createContext, ReactNode, useContext, useEffect, useRef, useState } from 'react';
+import { createContext, ReactNode, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 
 import {
+  Achievement,
+  applyPenalties,
   currentWeight,
   dailyMissions,
   DEFAULT_SETTINGS,
@@ -11,8 +14,10 @@ import {
   fastEnd,
   levelFromXp,
   Player,
+  rankFromLevel,
   Settings,
   today,
+  unlockAchievements,
   withProgress,
   WORKOUT_MIN_MINUTES,
   WORKOUT_XP,
@@ -25,19 +30,29 @@ import { cancelReminders, setupReminders, syncReminders } from './reminders';
 
 const STORAGE_KEY = 'despertar:player';
 
+export type SystemEvent = { id?: number } & (
+  | { kind: 'level'; level: number; rankUp: string | null }
+  | { kind: 'achievement'; achievement: Achievement }
+  | { kind: 'achievements'; count: number; xp: number }
+  | { kind: 'penalty'; xpLost: number; days: number }
+);
+
 type PlayerContextValue = {
   player: Player | null;
   loading: boolean;
   awaken: (data: { name: string; heightCm: number; weightKg: number; goalWeightKg: number }) => void;
-  addProgress: (missionId: string, amount: number) => { leveledUp: boolean; level: number };
-  setProgress: (missionId: string, value: number) => { leveledUp: boolean; level: number };
+  // avisos do Sistema na fila (level up, conquistas, penalidades), mostrados um por vez
+  events: SystemEvent[];
+  dismissEvent: () => void;
+  addProgress: (missionId: string, amount: number) => void;
+  setProgress: (missionId: string, value: number) => void;
   logWeight: (kg: number) => void;
   startFast: (goalHours: number) => void;
-  endFast: () => { success: boolean; leveledUp: boolean; level: number };
+  endFast: () => { success: boolean };
   startWorkout: (mode: WorkoutMode) => void;
-  logSet: (set: WorkoutSet) => { leveledUp: boolean; level: number };
+  logSet: (set: WorkoutSet) => void;
   removeSet: (index: number) => void;
-  finishWorkout: () => { record: WorkoutRecord; leveledUp: boolean; level: number } | null;
+  finishWorkout: () => { record: WorkoutRecord } | null;
   cancelWorkout: () => void;
   updateSettings: (settings: Settings) => void;
   updateProfile: (data: { name: string; heightCm: number; goalWeightKg: number }) => void;
@@ -50,16 +65,15 @@ const PlayerContext = createContext<PlayerContextValue | null>(null);
 export function PlayerProvider({ children }: { children: ReactNode }) {
   const [player, setPlayer] = useState<Player | null>(null);
   const [loading, setLoading] = useState(true);
+  const [events, setEvents] = useState<SystemEvent[]>([]);
+  const eventId = useRef(0);
   const remindersReady = useRef(false);
-
+  // Cópia sempre atual do jogador para funções que rodam fora do render (penalidades, save).
+  const playerRef = useRef<Player | null>(null);
   useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEY)
-      .then((raw) => {
-        if (!raw) return;
-        setPlayer(normalize(JSON.parse(raw)));
-      })
-      .finally(() => setLoading(false));
-  }, []);
+    playerRef.current = player;
+  }, [player]);
+
 
   // Reagenda os lembretes quando o progresso muda (espera 1s para juntar vários toques seguidos).
   useEffect(() => {
@@ -71,10 +85,54 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(timer);
   }, [player]);
 
-  function save(next: Player) {
+  // Todo salvamento passa por aqui: desbloqueia conquistas e avisa level up / rank up.
+  const save = useCallback((changed: Player, extraEvents: SystemEvent[] = []) => {
+    const before = playerRef.current;
+    const { player: next, unlocked } = unlockAchievements(changed);
+    const news: SystemEvent[] = [...extraEvents];
+    if (unlocked.length > 2) {
+      news.push({ kind: 'achievements', count: unlocked.length, xp: unlocked.reduce((sum, a) => sum + a.xp, 0) });
+    } else {
+      news.push(...unlocked.map((achievement) => ({ kind: 'achievement' as const, achievement })));
+    }
+    if (before) {
+      const level = levelFromXp(next.xp);
+      if (level > levelFromXp(before.xp)) {
+        const rank = rankFromLevel(level);
+        news.push({ kind: 'level', level, rankUp: rank !== rankFromLevel(levelFromXp(before.xp)) ? rank : null });
+      }
+    }
+    if (news.length) setEvents((list) => [...list, ...news.map((e) => ({ ...e, id: ++eventId.current }))]);
+    playerRef.current = next;
     setPlayer(next);
     AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-  }
+  }, []);
+
+  // Carrega os dados salvos. Passa pelo save para liberar conquistas já cumpridas (ex.: após atualizar o app).
+  useEffect(() => {
+    AsyncStorage.getItem(STORAGE_KEY)
+      .then((raw) => raw && save(normalize(JSON.parse(raw))))
+      .finally(() => setLoading(false));
+  }, [save]);
+
+  // Penalidades: ao abrir o app, ao voltar para ele e na virada do dia, confere os dias encerrados.
+  const checkDay = useCallback(() => {
+    const current = playerRef.current;
+    if (!current || current.lastCheckDay >= today()) return;
+    const { player: next, xpLost, days } = applyPenalties(current);
+    save(next, xpLost > 0 ? [{ kind: 'penalty', xpLost, days }] : []);
+  }, [save]);
+
+  useEffect(() => {
+    if (loading) return;
+    checkDay();
+    const sub = AppState.addEventListener('change', (state) => state === 'active' && checkDay());
+    const timer = setInterval(checkDay, 60_000);
+    return () => {
+      sub.remove();
+      clearInterval(timer);
+    };
+  }, [loading, checkDay]);
 
   function awaken({ name, heightCm, weightKg, goalWeightKg }: Parameters<PlayerContextValue['awaken']>[0]) {
     save({
@@ -92,18 +150,17 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       workout: null,
       workouts: [],
       settings: DEFAULT_SETTINGS,
+      achievements: {},
+      lastCheckDay: today(),
     });
   }
 
   function setProgress(missionId: string, value: number) {
-    if (!player) return { leveledUp: false, level: 1 };
-    const next = withProgress(player, missionId, value);
-    save(next);
-    return levelChange(player, next);
+    if (player) save(withProgress(player, missionId, value));
   }
 
   function addProgress(missionId: string, amount: number) {
-    return setProgress(missionId, (player?.progress[today()]?.[missionId] ?? 0) + amount);
+    setProgress(missionId, (player?.progress[today()]?.[missionId] ?? 0) + amount);
   }
 
   function logWeight(kg: number) {
@@ -119,7 +176,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
   // Encerrar depois da meta = sucesso (XP + Disciplina). Antes da meta, só registra, sem penalidade.
   function endFast() {
-    if (!player?.fast) return { success: false, leveledUp: false, level: 1 };
+    if (!player?.fast) return { success: false };
     const end = Date.now();
     const success = end >= fastEnd(player.fast);
     const xp = success ? FAST_CHALLENGES.find((c) => c.hours === player.fast!.goalHours)!.xp : 0;
@@ -132,7 +189,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       fasts: [...player.fasts, { ...player.fast, end, success }],
     };
     save(next);
-    return { success, ...levelChange(player, next) };
+    return { success };
   }
 
   function startWorkout(mode: WorkoutMode) {
@@ -148,11 +205,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   }
 
   function logSet(set: WorkoutSet) {
-    if (!player?.workout) return { leveledUp: false, level: 1 };
+    if (!player?.workout) return;
     const withSet = { ...player, workout: { ...player.workout, sets: [...player.workout.sets, set] } };
-    const next = changeMission(withSet, set, 1);
-    save(next);
-    return levelChange(player, next);
+    save(changeMission(withSet, set, 1));
   }
 
   function removeSet(index: number) {
@@ -183,7 +238,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       workouts: [...player.workouts, record],
     };
     save(next);
-    return { record, ...levelChange(player, next) };
+    return { record };
   }
 
   // Cancelar descarta a sessão e desfaz o que ela tinha somado nas missões.
@@ -216,6 +271,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     <PlayerContext.Provider value={{
         player,
         loading,
+        events,
+        dismissEvent: () => setEvents((list) => list.slice(1)),
         awaken,
         addProgress,
         setProgress,
@@ -258,13 +315,12 @@ function normalize(saved: any): Player {
     workout: null,
     workouts: [],
     ...saved,
+    achievements: {},
+    // sem data de verificação (dados antigos): começa hoje, sem penalizar o passado
+    lastCheckDay: today(),
+    ...saved,
     settings: { ...DEFAULT_SETTINGS, ...saved.settings },
   };
-}
-
-function levelChange(before: Player, after: Player) {
-  const level = levelFromXp(after.xp);
-  return { leveledUp: level > levelFromXp(before.xp), level };
 }
 
 export function usePlayer() {

@@ -25,11 +25,11 @@ export default function Jejum() {
   const fast = player.fast;
 
   function finish() {
-    const { success, leveledUp, level } = endFast();
+    const { success } = endFast();
     const xp = FAST_CHALLENGES.find((c) => c.hours === fast!.goalHours)!.xp;
     setMessage(
       success
-        ? { text: `Jejum de ${fast!.goalHours}h concluído! +${xp} XP, +1 Disciplina.${leveledUp ? ` LEVEL UP! Nível ${level}.` : ''}`, success }
+        ? { text: `Jejum de ${fast!.goalHours}h concluído! +${xp} XP, +1 Disciplina.`, success }
         : { text: 'Jejum encerrado antes da meta. Sem XP desta vez, tente de novo.', success },
     );
   }

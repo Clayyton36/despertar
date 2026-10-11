@@ -39,7 +39,7 @@ export default function Treinos() {
   function finish() {
     const result = finishWorkout();
     if (!result) return;
-    const { record, leveledUp, level } = result;
+    const { record } = result;
     const minutes = Math.round((record.end - record.start) / 60_000);
     const reward = record.xp
       ? ` +${record.xp} XP, +1 Força.`
@@ -47,13 +47,9 @@ export default function Treinos() {
         ? ` Treinos a partir de ${WORKOUT_MIN_MINUTES} min dão XP.`
         : ' XP de treino de hoje já recebido.';
     setMessage({
-      text: `Treino concluído: ${minutes} min, ~${record.kcal} kcal.${reward}${leveledUp ? ` LEVEL UP! Nível ${level}.` : ''}`,
+      text: `Treino concluído: ${minutes} min, ~${record.kcal} kcal.${reward}`,
       gold: record.xp > 0,
     });
-  }
-
-  function onLevelUp({ leveledUp, level }: { leveledUp: boolean; level: number }) {
-    if (leveledUp) setMessage({ text: `LEVEL UP! Você alcançou o nível ${level}.`, gold: true });
   }
 
   const weekAgo = now - 7 * 24 * 3600_000;
@@ -75,7 +71,7 @@ export default function Treinos() {
             workout={workout}
             now={now}
             weightKg={currentWeight(player)}
-            onLog={(set) => onLevelUp(logSet(set))}
+            onLog={logSet}
             onRemove={removeSet}
             onFinish={finish}
             onCancel={cancelWorkout}

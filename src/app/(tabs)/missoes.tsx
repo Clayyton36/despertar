@@ -14,6 +14,7 @@ import {
   isDone,
   Mission,
   missionProgress,
+  PENALTY_PER_MISSION,
   Player,
   remainingText,
   stepCalories,
@@ -26,9 +27,8 @@ import { useStepSync } from '@/lib/useStepSync';
 
 export default function Missoes() {
   const { player, addProgress, setProgress } = usePlayer();
-  const [levelUpMessage, setLevelUpMessage] = useState<string | null>(null);
   const steps = useStepSync((count) => {
-    if (player && count !== missionProgress(player, 'passos')) showLevelUp(setProgress('passos', count));
+    if (player && count !== missionProgress(player, 'passos')) setProgress('passos', count);
   });
   if (!player) return null;
 
@@ -36,25 +36,10 @@ export default function Missoes() {
   const doneCount = missions.filter((m) => isDone(player, m)).length;
   const allDone = doneCount === missions.length;
 
-  function showLevelUp({ leveledUp, level }: { leveledUp: boolean; level: number }) {
-    if (leveledUp) setLevelUpMessage(`LEVEL UP! Você alcançou o nível ${level}.`);
-  }
-
-  function add(id: string, amount: number) {
-    showLevelUp(addProgress(id, amount));
-  }
 
   return (
     <SafeAreaView style={styles.screen}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        {levelUpMessage && (
-          <Pressable onPress={() => setLevelUpMessage(null)}>
-            <SystemPanel title="SISTEMA" style={{ borderColor: colors.gold }}>
-              <Text style={styles.levelUp}>{levelUpMessage}</Text>
-            </SystemPanel>
-          </Pressable>
-        )}
-
         <SystemPanel title="MISSÃO DIÁRIA">
           <Text style={styles.subtitle}>
             {doneCount} / {missions.length} concluídas
@@ -66,13 +51,13 @@ export default function Missoes() {
                 key={m.id}
                 player={player}
                 mission={m}
-                onAdd={(amount) => add(m.id, amount)}
+                onAdd={(amount) => addProgress(m.id, amount)}
                 automatic={m.id === 'passos' && steps.status === 'connected'}
               >
                 {m.id === 'passos' && <StepsInfo player={player} {...steps} />}
               </QuantityMission>
             ) : (
-              <CheckMission key={m.id} player={player} mission={m} onAdd={(amount) => add(m.id, amount)} />
+              <CheckMission key={m.id} player={player} mission={m} onAdd={(amount) => addProgress(m.id, amount)} />
             ),
           )}
         </SystemPanel>
@@ -81,7 +66,7 @@ export default function Missoes() {
           <Text style={styles.warning}>
             {allDone
               ? 'Todas as missões de hoje foram cumpridas. Descanse, Jogador.'
-              : 'Não completar a missão diária quebra sua sequência.'}
+              : `Missão incompleta no fim do dia: -${PENALTY_PER_MISSION} XP por missão e a sequência quebra.`}
           </Text>
         </SystemPanel>
       </ScrollView>

@@ -41,6 +41,9 @@ export type Player = {
   workout: ActiveWorkout | null;
   workouts: WorkoutRecord[];
   settings: Settings;
+  // conquistas desbloqueadas (id -> quando) e último dia já verificado para penalidades
+  achievements: Record<string, number>;
+  lastCheckDay: string;
 };
 
 // ---------- Configurações ----------
@@ -321,4 +324,104 @@ export function setText(set: WorkoutSet) {
   if (ex.kind === 'minutos') return `${set.value} min`;
   if (ex.kind === 'segundos') return `${set.value} s`;
   return set.kg ? `${set.value} × ${set.kg} kg` : `${set.value} reps`;
+}
+
+// ---------- Conquistas ----------
+
+export type Achievement = { id: string; title: string; detail: string; icon: string; xp: number; test: (p: Player) => boolean };
+
+const successes = (p: Player, hours: number) => p.fasts.some((f) => f.success && f.goalHours >= hours);
+const lostKg = (p: Player) => p.startWeightKg - currentWeight(p);
+const missionDays = (p: Player, id: string) => Object.values(p.completed).filter((ids) => ids.includes(id)).length;
+const rankAt = (p: Player, rank: string) => RANKS.findIndex((r) => r.rank === rankFromLevel(levelFromXp(p.xp))) >= RANKS.findIndex((r) => r.rank === rank);
+
+export const ACHIEVEMENTS: Achievement[] = [
+  { id: 'primeira-missao', title: 'O Despertar', detail: 'Concluir a primeira missão', icon: '⚡', xp: 10, test: (p) => Object.values(p.completed).some((ids) => ids.length > 0) },
+  { id: 'dia-completo', title: 'Missão Cumprida', detail: 'Concluir todas as missões de um dia', icon: '✅', xp: 25, test: (p) => bestStreak(p) >= 1 },
+  { id: 'sequencia-3', title: 'Constância', detail: '3 dias seguidos com tudo concluído', icon: '🔥', xp: 30, test: (p) => bestStreak(p) >= 3 },
+  { id: 'sequencia-7', title: 'Semana Perfeita', detail: '7 dias seguidos com tudo concluído', icon: '🗓️', xp: 60, test: (p) => bestStreak(p) >= 7 },
+  { id: 'sequencia-30', title: 'Disciplina de Ferro', detail: '30 dias seguidos com tudo concluído', icon: '🛡️', xp: 200, test: (p) => bestStreak(p) >= 30 },
+  { id: 'hidratado', title: 'Hidratado', detail: 'Bater a meta de água em 7 dias', icon: '💧', xp: 30, test: (p) => missionDays(p, 'agua') >= 7 },
+  { id: 'dorminhoco', title: 'Sono em Dia', detail: 'Cumprir a missão de sono em 7 dias', icon: '🌙', xp: 30, test: (p) => missionDays(p, 'sono') >= 7 },
+  { id: 'passos-10k', title: 'Andarilho', detail: 'Fazer 10.000 passos num dia', icon: '👟', xp: 30, test: (p) => Object.values(p.progress).some((d) => (d.passos ?? 0) >= 10000) },
+  { id: 'jejum-12', title: 'Primeiro Jejum', detail: 'Completar um jejum de 12h', icon: '⏳', xp: 20, test: (p) => successes(p, 12) },
+  { id: 'jejum-16', title: 'Mestre do Jejum', detail: 'Completar um jejum de 16h', icon: '⌛', xp: 50, test: (p) => successes(p, 16) },
+  { id: 'jejum-18', title: 'Jejum Lendário', detail: 'Completar um jejum de 18h', icon: '🏺', xp: 80, test: (p) => successes(p, 18) },
+  { id: 'treino-1', title: 'Primeiro Treino', detail: 'Finalizar um treino', icon: '🏋️', xp: 20, test: (p) => p.workouts.length >= 1 },
+  { id: 'treino-10', title: 'Rato de Academia', detail: 'Finalizar 10 treinos', icon: '💪', xp: 50, test: (p) => p.workouts.length >= 10 },
+  { id: 'treino-50', title: 'Máquina', detail: 'Finalizar 50 treinos', icon: '🦾', xp: 150, test: (p) => p.workouts.length >= 50 },
+  { id: 'peso-1', title: 'Primeiro Quilo', detail: 'Perder 1 kg', icon: '⚖️', xp: 30, test: (p) => lostKg(p) >= 1 },
+  { id: 'peso-5', title: 'Transformação', detail: 'Perder 5 kg', icon: '📉', xp: 100, test: (p) => lostKg(p) >= 5 },
+  { id: 'peso-10', title: 'Renascido', detail: 'Perder 10 kg', icon: '🦋', xp: 200, test: (p) => lostKg(p) >= 10 },
+  { id: 'meta', title: 'Objetivo Alcançado', detail: 'Chegar ao peso meta', icon: '🏆', xp: 300, test: (p) => currentWeight(p) <= p.goalWeightKg },
+  { id: 'rank-d', title: 'Rank D', detail: 'Alcançar o Rank D (nível 10)', icon: '🥉', xp: 0, test: (p) => rankAt(p, 'D') },
+  { id: 'rank-c', title: 'Rank C', detail: 'Alcançar o Rank C (nível 20)', icon: '🥈', xp: 0, test: (p) => rankAt(p, 'C') },
+  { id: 'rank-b', title: 'Rank B', detail: 'Alcançar o Rank B (nível 35)', icon: '🥇', xp: 0, test: (p) => rankAt(p, 'B') },
+  { id: 'rank-a', title: 'Rank A', detail: 'Alcançar o Rank A (nível 50)', icon: '💎', xp: 0, test: (p) => rankAt(p, 'A') },
+  { id: 'rank-s', title: 'Rank S', detail: 'Alcançar o Rank S (nível 75)', icon: '👑', xp: 0, test: (p) => rankAt(p, 'S') },
+];
+
+// Maior sequência de dias com todas as missões concluídas, em todo o histórico.
+export function bestStreak(player: Player) {
+  const total = dailyMissions(player).length;
+  const days = Object.keys(player.completed)
+    .filter((d) => player.completed[d].length >= total)
+    .sort();
+  let best = 0;
+  let run = 0;
+  let prev: Date | null = null;
+  for (const key of days) {
+    const d = new Date(`${key}T12:00:00`);
+    run = prev && Math.round((d.getTime() - prev.getTime()) / 86_400_000) === 1 ? run + 1 : 1;
+    best = Math.max(best, run);
+    prev = d;
+  }
+  return best;
+}
+
+// Desbloqueia o que foi conquistado (somando o XP de cada uma). Repete porque o XP ganho
+// pode liberar uma conquista de rank.
+export function unlockAchievements(player: Player): { player: Player; unlocked: Achievement[] } {
+  let p = player;
+  const unlocked: Achievement[] = [];
+  for (let round = 0; round < 5; round++) {
+    const fresh = ACHIEVEMENTS.filter((a) => !p.achievements[a.id] && a.test(p));
+    if (fresh.length === 0) break;
+    const now = Date.now();
+    p = {
+      ...p,
+      xp: p.xp + fresh.reduce((sum, a) => sum + a.xp, 0),
+      achievements: { ...p.achievements, ...Object.fromEntries(fresh.map((a) => [a.id, now])) },
+    };
+    unlocked.push(...fresh);
+  }
+  return { player: p, unlocked };
+}
+
+// ---------- Penalidades ----------
+
+export const PENALTY_PER_MISSION = 5;
+const MAX_PENALTY_DAYS = 7;
+
+// Para cada dia já encerrado desde a última verificação, perde XP por missão não cumprida.
+// O XP nunca cai abaixo do início do nível atual: a penalidade dói, mas não rebaixa.
+export function applyPenalties(player: Player): { player: Player; xpLost: number; days: number } {
+  const total = dailyMissions(player).length;
+  const day = new Date(`${player.lastCheckDay}T12:00:00`);
+  const todayKey = today();
+  let missed = 0;
+  let days = 0;
+  for (let i = 0; i < MAX_PENALTY_DAYS; i++) {
+    const key = dateKey(day);
+    if (key >= todayKey) break;
+    const missing = total - (player.completed[key]?.length ?? 0);
+    if (missing > 0) {
+      missed += missing;
+      days++;
+    }
+    day.setDate(day.getDate() + 1);
+  }
+  const floor = xpForLevel(levelFromXp(player.xp));
+  const xp = Math.max(floor, player.xp - missed * PENALTY_PER_MISSION);
+  return { player: { ...player, xp, lastCheckDay: todayKey }, xpLost: player.xp - xp, days };
 }

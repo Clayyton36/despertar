@@ -14,6 +14,9 @@ App Android para criar hábitos saudáveis e perder peso, inspirado no "Sistema"
 - **Evolução:** peso perdido, sequência, gráfico de peso com meta e gráficos dos últimos 7 dias (missões, água, calorias)
 - **Configurações:** editar perfil, meta de água, horário de dormir e os horários de cada lembrete (ou desligá-los)
 - **Backup:** exportar os dados num arquivo e importar de volta (ex.: celular novo)
+- **Conquistas:** 23 medalhas (sequências, água, sono, passos, jejuns, treinos, peso, ranks) com XP de recompensa
+- **Avisos do Sistema:** janela animada com vibração para level up, rank up, conquistas e penalidades
+- **Penalidades:** missão incompleta no fim do dia tira 5 XP por missão (sem rebaixar de nível)
 - **Lembretes do Sistema:** notificações de água, refeições, treino e sono que cobram exatamente o que falta
 
 ## Tecnologias
@@ -38,4 +41,3 @@ Os lembretes precisam do build de desenvolvimento (`npx eas-cli build --platform
 
 ## Próximos passos
 
-- Conquistas
