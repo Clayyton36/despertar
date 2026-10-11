@@ -4,7 +4,7 @@ import Constants, { ExecutionEnvironment } from 'expo-constants';
 import type * as NotificationsModule from 'expo-notifications';
 import { Platform } from 'react-native';
 
-import { amountText, dailyMissions, isDone, Mission, Player, remainingText } from './game';
+import { amountText, dailyMissions, fastEnd, isDone, Mission, Player, remainingText } from './game';
 
 const CHANNEL_ID = 'lembretes';
 // Agenda hoje + os próximos dias, para os lembretes continuarem mesmo sem abrir o app.
@@ -59,6 +59,22 @@ export async function syncReminders(player: Player) {
   const missions = dailyMissions(player);
   const byId = Object.fromEntries(missions.map((m) => [m.id, m])) as Record<string, Mission>;
   const now = new Date();
+  const fast = player.fast;
+  const duringFast = (date: Date) => !!fast && date.getTime() >= fast.start && date.getTime() <= fastEnd(fast);
+
+  if (fast) {
+    const notify = (time: number, title: string, body: string) =>
+      time > now.getTime() &&
+      Notifications.scheduleNotificationAsync({
+        content: { title, body },
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: time, channelId: CHANNEL_ID },
+      });
+    const half = fast.start + (fastEnd(fast) - fast.start) / 2;
+    await Promise.all([
+      notify(half, '[SISTEMA] Jejum', `Metade do jejum de ${fast.goalHours}h concluída. Continue firme.`),
+      notify(fastEnd(fast), '[SISTEMA] Jejum concluído', `Desafio de ${fast.goalHours}h cumprido! Encerre o jejum para receber o XP.`),
+    ]);
+  }
 
   for (let day = 0; day < DAYS_AHEAD; day++) {
     const isToday = day === 0;
@@ -72,9 +88,9 @@ export async function syncReminders(player: Player) {
       d.setHours(h, min, 0, 0);
       return d;
     };
-    const schedule = (time: [number, number], title: string, body: string) => {
+    const schedule = (time: [number, number], title: string, body: string, skipDuringFast = false) => {
       const date = at(time);
-      if (date <= now) return;
+      if (date <= now || (skipDuringFast && duringFast(date))) return;
       return Notifications.scheduleNotificationAsync({
         content: { title, body },
         trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date, channelId: CHANNEL_ID },
@@ -91,7 +107,7 @@ export async function syncReminders(player: Player) {
 
     if (pending(byId.refeicoes)) {
       for (const meal of MEALS) {
-        jobs.push(schedule(meal.time, '[SISTEMA] Alimentação', `Hora do ${meal.name}. Coma no horário e sem besteira.`));
+        jobs.push(schedule(meal.time, '[SISTEMA] Alimentação', `Hora do ${meal.name}. Coma no horário e sem besteira.`, true));
       }
     }
 

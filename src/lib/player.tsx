@@ -2,7 +2,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, ReactNode, useContext, useEffect, useRef, useState } from 'react';
 
-import { dailyMissions, levelFromXp, Player, today } from './game';
+import { dailyMissions, FAST_CHALLENGES, fastEnd, levelFromXp, Player, today } from './game';
 import { setupReminders, syncReminders } from './reminders';
 
 const STORAGE_KEY = 'despertar:player';
@@ -13,6 +13,8 @@ type PlayerContextValue = {
   awaken: (data: { name: string; heightCm: number; weightKg: number; goalWeightKg: number }) => void;
   addProgress: (missionId: string, amount: number) => { leveledUp: boolean; level: number };
   logWeight: (kg: number) => void;
+  startFast: (goalHours: number) => void;
+  endFast: () => { success: boolean; leveledUp: boolean; level: number };
 };
 
 const PlayerContext = createContext<PlayerContextValue | null>(null);
@@ -37,7 +39,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
             ]),
           );
         }
-        setPlayer(saved);
+        setPlayer({ fast: null, fasts: [], ...saved });
       })
       .finally(() => setLoading(false));
   }, []);
@@ -68,6 +70,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       attributes: { forca: 10, vitalidade: 10, resistencia: 10, disciplina: 10 },
       progress: {},
       completed: {},
+      fast: null,
+      fasts: [],
     });
   }
 
@@ -105,8 +109,32 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     save({ ...player, weights: [...others, { date: today(), kg }] });
   }
 
+  function startFast(goalHours: number) {
+    if (!player || player.fast) return;
+    save({ ...player, fast: { start: Date.now(), goalHours } });
+  }
+
+  // Encerrar depois da meta = sucesso (XP + Disciplina). Antes da meta, só registra, sem penalidade.
+  function endFast() {
+    if (!player?.fast) return { success: false, leveledUp: false, level: 1 };
+    const end = Date.now();
+    const success = end >= fastEnd(player.fast);
+    const xp = success ? FAST_CHALLENGES.find((c) => c.hours === player.fast!.goalHours)!.xp : 0;
+
+    const next: Player = {
+      ...player,
+      xp: player.xp + xp,
+      attributes: { ...player.attributes, disciplina: player.attributes.disciplina + (success ? 1 : 0) },
+      fast: null,
+      fasts: [...player.fasts, { ...player.fast, end, success }],
+    };
+    save(next);
+    const level = levelFromXp(next.xp);
+    return { success, leveledUp: level > levelFromXp(player.xp), level };
+  }
+
   return (
-    <PlayerContext.Provider value={{ player, loading, awaken, addProgress, logWeight }}>
+    <PlayerContext.Provider value={{ player, loading, awaken, addProgress, logWeight, startFast, endFast }}>
       {children}
     </PlayerContext.Provider>
   );

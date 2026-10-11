@@ -28,6 +28,10 @@ export default function TabLayout() {
         name="missoes"
         options={{ title: 'Missões', tabBarIcon: ({ color }) => <FontAwesome size={24} name="list-ul" color={color} /> }}
       />
+      <Tabs.Screen
+        name="jejum"
+        options={{ title: 'Jejum', tabBarIcon: ({ color }) => <FontAwesome size={24} name="hourglass-half" color={color} /> }}
+      />
     </Tabs>
   );
 }

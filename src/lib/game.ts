@@ -34,7 +34,34 @@ export type Player = {
   progress: Record<string, Record<string, number>>;
   // missões concluídas por dia (guarda o resultado mesmo se a meta mudar depois)
   completed: Record<string, string[]>;
+  // jejum em andamento (horários em milissegundos) e histórico dos anteriores
+  fast: { start: number; goalHours: number } | null;
+  fasts: FastRecord[];
 };
+
+export type FastRecord = { start: number; end: number; goalHours: number; success: boolean };
+
+// Desafios de jejum: cada um libera depois de completar o anterior algumas vezes.
+// Paramos em 18h de propósito, por segurança.
+export const FAST_CHALLENGES = [
+  { hours: 12, xp: 30 },
+  { hours: 14, xp: 40 },
+  { hours: 16, xp: 50 },
+  { hours: 18, xp: 60 },
+];
+export const FASTS_TO_UNLOCK = 3;
+
+export function fastSuccesses(player: Player, hours: number) {
+  return player.fasts.filter((f) => f.success && f.goalHours === hours).length;
+}
+
+export function isChallengeUnlocked(player: Player, index: number) {
+  return index === 0 || fastSuccesses(player, FAST_CHALLENGES[index - 1].hours) >= FASTS_TO_UNLOCK;
+}
+
+export function fastEnd(fast: { start: number; goalHours: number }) {
+  return fast.start + fast.goalHours * 3600_000;
+}
 
 export const RANKS = [
   { rank: 'E', minLevel: 1 },
