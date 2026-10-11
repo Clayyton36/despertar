@@ -96,6 +96,16 @@ export function bmi(weightKg: number, heightCm: number) {
   return weightKg / (m * m);
 }
 
+// Estimativas a partir dos passos: ~0,0005 kcal por passo por kg (≈0,04 kcal/passo a 80 kg)
+// e passada de ~41,5% da altura.
+export function stepCalories(steps: number, weightKg: number) {
+  return Math.round(steps * weightKg * 0.0005);
+}
+
+export function stepDistanceKm(steps: number, heightCm: number) {
+  return (steps * heightCm * 0.415) / 100_000;
+}
+
 // Recomendação comum: ~35 ml de água por kg de peso (arredondado para 100 ml).
 export function waterGoalMl(weightKg: number) {
   return Math.round((weightKg * 35) / 100) * 100;

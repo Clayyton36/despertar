@@ -1,6 +1,6 @@
 // Missões diárias: registre quanto fez (ex.: +200 ml, +5 flexões) e veja quanto falta.
 // Bater a meta dá XP e aumenta o atributo ligado à missão.
-import { useState } from 'react';
+import { ReactNode, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -8,6 +8,7 @@ import { SystemPanel } from '@/components/SystemPanel';
 import {
   amountText,
   ATTRIBUTE_LABELS,
+  currentWeight,
   dailyMissions,
   formatAmount,
   isDone,
@@ -15,22 +16,32 @@ import {
   missionProgress,
   Player,
   remainingText,
+  stepCalories,
+  stepDistanceKm,
 } from '@/lib/game';
+import { openHealthSettings } from '@/lib/health';
 import { usePlayer } from '@/lib/player';
 import { colors } from '@/lib/theme';
+import { useStepSync } from '@/lib/useStepSync';
 
 export default function Missoes() {
-  const { player, addProgress } = usePlayer();
+  const { player, addProgress, setProgress } = usePlayer();
   const [levelUpMessage, setLevelUpMessage] = useState<string | null>(null);
+  const steps = useStepSync((count) => {
+    if (player && count !== missionProgress(player, 'passos')) showLevelUp(setProgress('passos', count));
+  });
   if (!player) return null;
 
   const missions = dailyMissions(player);
   const doneCount = missions.filter((m) => isDone(player, m)).length;
   const allDone = doneCount === missions.length;
 
-  function add(id: string, amount: number) {
-    const { leveledUp, level } = addProgress(id, amount);
+  function showLevelUp({ leveledUp, level }: { leveledUp: boolean; level: number }) {
     if (leveledUp) setLevelUpMessage(`LEVEL UP! Você alcançou o nível ${level}.`);
+  }
+
+  function add(id: string, amount: number) {
+    showLevelUp(addProgress(id, amount));
   }
 
   return (
@@ -51,7 +62,15 @@ export default function Missoes() {
 
           {missions.map((m) =>
             m.unit ? (
-              <QuantityMission key={m.id} player={player} mission={m} onAdd={(amount) => add(m.id, amount)} />
+              <QuantityMission
+                key={m.id}
+                player={player}
+                mission={m}
+                onAdd={(amount) => add(m.id, amount)}
+                automatic={m.id === 'passos' && steps.status === 'connected'}
+              >
+                {m.id === 'passos' && <StepsInfo player={player} {...steps} />}
+              </QuantityMission>
             ) : (
               <CheckMission key={m.id} player={player} mission={m} onAdd={(amount) => add(m.id, amount)} />
             ),
@@ -99,7 +118,13 @@ function CheckMission({ player, mission, onAdd }: MissionProps) {
   );
 }
 
-function QuantityMission({ player, mission, onAdd }: MissionProps) {
+function QuantityMission({
+  player,
+  mission,
+  onAdd,
+  automatic,
+  children,
+}: MissionProps & { automatic?: boolean; children?: ReactNode }) {
   const [custom, setCustom] = useState('');
   const value = missionProgress(player, mission.id);
   const done = isDone(player, mission);
@@ -125,26 +150,69 @@ function QuantityMission({ player, mission, onAdd }: MissionProps) {
         {done ? '  •  meta batida!' : `  •  faltam ${remainingText(player, mission)}`}
       </Text>
 
-      <View style={styles.buttons}>
-        <Pressable style={[styles.chip, styles.chipMinus]} onPress={() => onAdd(-mission.steps![0])} disabled={value === 0}>
-          <Text style={styles.chipText}>−{mission.steps![0]}</Text>
-        </Pressable>
-        {mission.steps!.map((step) => (
-          <Pressable key={step} style={styles.chip} onPress={() => onAdd(step)}>
-            <Text style={styles.chipText}>+{step}</Text>
+      {children}
+
+      {!automatic && (
+        <View style={styles.buttons}>
+          <Pressable
+            style={[styles.chip, styles.chipMinus]}
+            onPress={() => onAdd(-mission.steps![0])}
+            disabled={value === 0}
+          >
+            <Text style={styles.chipText}>−{mission.steps![0]}</Text>
           </Pressable>
-        ))}
-        <TextInput
-          style={styles.customInput}
-          placeholder="outro"
-          placeholderTextColor={colors.muted}
-          keyboardType="number-pad"
-          value={custom}
-          onChangeText={setCustom}
-          onSubmitEditing={addCustom}
-          returnKeyType="done"
-        />
-      </View>
+          {mission.steps!.map((step) => (
+            <Pressable key={step} style={styles.chip} onPress={() => onAdd(step)}>
+              <Text style={styles.chipText}>+{step}</Text>
+            </Pressable>
+          ))}
+          <TextInput
+            style={styles.customInput}
+            placeholder="outro"
+            placeholderTextColor={colors.muted}
+            keyboardType="number-pad"
+            value={custom}
+            onChangeText={setCustom}
+            onSubmitEditing={addCustom}
+            returnKeyType="done"
+          />
+        </View>
+      )}
+    </View>
+  );
+}
+
+function StepsInfo({ player, status, lastSync, sync, connect }: { player: Player } & ReturnType<typeof useStepSync>) {
+  const steps = missionProgress(player, 'passos');
+  const kcal = stepCalories(steps, currentWeight(player));
+  const km = stepDistanceKm(steps, player.heightCm);
+  const time = lastSync?.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+  return (
+    <View style={styles.stepsInfo}>
+      <Text style={styles.stepsStats}>
+        🔥 ~{kcal} kcal • 📏 ~{km.toFixed(1).replace('.', ',')} km
+      </Text>
+
+      {status === 'connected' && (
+        <Pressable onPress={sync}>
+          <Text style={styles.hint}>
+            Automático via Health Connect{time ? `, atualizado às ${time}` : ''}. Toque para atualizar.
+          </Text>
+        </Pressable>
+      )}
+      {status === 'no-permission' && (
+        <Pressable style={styles.connectButton} onPress={connect}>
+          <Text style={styles.chipText}>CONECTAR PASSOS AUTOMÁTICOS</Text>
+        </Pressable>
+      )}
+      {status === 'not-installed' && (
+        <Pressable onPress={openHealthSettings}>
+          <Text style={styles.hint}>
+            Health Connect não encontrado ou desatualizado. Instale/atualize pela Play Store.
+          </Text>
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -176,6 +244,15 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     paddingHorizontal: 10,
     paddingVertical: 6,
+  },
+  stepsInfo: { marginTop: 8 },
+  stepsStats: { color: colors.text, fontSize: 13 },
+  connectButton: {
+    backgroundColor: colors.border,
+    borderRadius: 4,
+    paddingVertical: 10,
+    alignItems: 'center',
+    marginTop: 8,
   },
   levelUp: { color: colors.gold, fontSize: 18, fontWeight: '800', textAlign: 'center' },
   warning: { color: colors.text, textAlign: 'center' },

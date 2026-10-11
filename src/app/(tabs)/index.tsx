@@ -10,7 +10,9 @@ import {
   bmi,
   currentWeight,
   levelFromXp,
+  missionProgress,
   rankFromLevel,
+  stepCalories,
   streak,
   xpForLevel,
 } from '@/lib/game';
@@ -68,6 +70,7 @@ export default function Status() {
           <Row label="Já perdeu" value={`${lost.toFixed(1)} kg`} highlight={lost > 0} />
           <Row label="Falta" value={`${Math.max(0, toGo).toFixed(1)} kg`} />
           <Row label="IMC" value={bmi(weight, player.heightCm).toFixed(1)} />
+          <Row label="Gasto hoje (passos)" value={`~${stepCalories(missionProgress(player, 'passos'), weight)} kcal`} />
 
           <View style={styles.weightRow}>
             <TextInput

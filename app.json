@@ -16,7 +16,10 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "package": "com.clayyton36.despertar"
+      "package": "com.clayyton36.despertar",
+      "permissions": [
+        "android.permission.health.READ_STEPS"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -24,7 +27,16 @@
     "plugins": [
       "expo-router",
       "expo-status-bar",
-      "expo-font"
+      "expo-font",
+      "react-native-health-connect",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 26
+          }
+        }
+      ]
     ],
     "scheme": "despertar",
     "experiments": {

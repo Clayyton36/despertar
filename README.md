@@ -9,6 +9,7 @@ App Android para criar hábitos saudáveis e perder peso, inspirado no "Sistema"
 - **Missões diárias por quantidade:** água (+200/300/500 ml), flexões, abdominais, agachamentos e passos, mostrando quanto falta. Alimentação e sono são de marcar
 - **Dificuldade progressiva:** as metas de treino aumentam conforme o nível
 - **Jejum intermitente:** desafios de 12h a 18h liberados aos poucos, timer, notificações de metade e fim, histórico
+- **Passos automáticos:** leitura dos passos do dia pelo Health Connect (Google Fit, Samsung Health etc.), com calorias e distância estimadas
 - **Lembretes do Sistema:** notificações de água, refeições, treino e sono que cobram exatamente o que falta
 
 ## Tecnologias
@@ -17,6 +18,7 @@ App Android para criar hábitos saudáveis e perder peso, inspirado no "Sistema"
 - Expo Router (navegação por abas)
 - AsyncStorage (dados salvos no celular)
 - expo-notifications (lembretes locais)
+- react-native-health-connect (passos)
 - EAS Build (APK gerado na nuvem)
 
 ## Rodando
@@ -30,6 +32,5 @@ Os lembretes precisam do build de desenvolvimento (`npx eas-cli build --platform
 
 ## Próximos passos
 
-- Passos automáticos e calorias via Health Connect
 - Treinos em casa e na academia
 - Gráficos de evolução e conquistas

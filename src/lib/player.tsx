@@ -12,6 +12,7 @@ type PlayerContextValue = {
   loading: boolean;
   awaken: (data: { name: string; heightCm: number; weightKg: number; goalWeightKg: number }) => void;
   addProgress: (missionId: string, amount: number) => { leveledUp: boolean; level: number };
+  setProgress: (missionId: string, value: number) => { leveledUp: boolean; level: number };
   logWeight: (kg: number) => void;
   startFast: (goalHours: number) => void;
   endFast: () => { success: boolean; leveledUp: boolean; level: number };
@@ -75,14 +76,14 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     });
   }
 
-  // Soma (ou subtrai) progresso numa missão de hoje. Ao bater a meta ganha XP e +1 no atributo;
+  // Define o progresso de hoje numa missão. Ao bater a meta ganha XP e +1 no atributo;
   // se voltar abaixo da meta, perde de novo.
-  function addProgress(missionId: string, amount: number) {
+  function setProgress(missionId: string, value: number) {
     if (!player) return { leveledUp: false, level: 1 };
     const mission = dailyMissions(player).find((m) => m.id === missionId)!;
     const day = today();
     const before = player.progress[day]?.[missionId] ?? 0;
-    const after = Math.max(0, before + amount);
+    const after = Math.max(0, value);
     const wasDone = before >= mission.target;
     const nowDone = after >= mission.target;
     const sign = nowDone === wasDone ? 0 : nowDone ? 1 : -1;
@@ -101,6 +102,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     save(next);
     const level = levelFromXp(next.xp);
     return { leveledUp: level > levelFromXp(player.xp), level };
+  }
+
+  function addProgress(missionId: string, amount: number) {
+    return setProgress(missionId, (player?.progress[today()]?.[missionId] ?? 0) + amount);
   }
 
   function logWeight(kg: number) {
@@ -134,7 +139,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <PlayerContext.Provider value={{ player, loading, awaken, addProgress, logWeight, startFast, endFast }}>
+    <PlayerContext.Provider value={{ player, loading, awaken, addProgress, setProgress, logWeight, startFast, endFast }}>
       {children}
     </PlayerContext.Provider>
   );
