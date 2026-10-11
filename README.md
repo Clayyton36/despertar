@@ -45,3 +45,7 @@ npx eas-cli build --platform android --profile preview       # APK final, funcio
 ```
 
 Os passos automáticos precisam de um app que registre passos no Health Connect (Google Fit, Samsung Health etc.).
+
+## Próximos passos
+
+Veja [PROXIMOS_PASSOS.md](PROXIMOS_PASSOS.md).
