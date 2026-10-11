@@ -5,11 +5,13 @@ import { createContext, ReactNode, useContext, useEffect, useRef, useState } fro
 import {
   currentWeight,
   dailyMissions,
+  DEFAULT_SETTINGS,
   exerciseById,
   FAST_CHALLENGES,
   fastEnd,
   levelFromXp,
   Player,
+  Settings,
   today,
   withProgress,
   WORKOUT_MIN_MINUTES,
@@ -19,7 +21,7 @@ import {
   WorkoutRecord,
   WorkoutSet,
 } from './game';
-import { setupReminders, syncReminders } from './reminders';
+import { cancelReminders, setupReminders, syncReminders } from './reminders';
 
 const STORAGE_KEY = 'despertar:player';
 
@@ -37,6 +39,10 @@ type PlayerContextValue = {
   removeSet: (index: number) => void;
   finishWorkout: () => { record: WorkoutRecord; leveledUp: boolean; level: number } | null;
   cancelWorkout: () => void;
+  updateSettings: (settings: Settings) => void;
+  updateProfile: (data: { name: string; heightCm: number; goalWeightKg: number }) => void;
+  replacePlayer: (player: Player) => void;
+  resetAll: () => void;
 };
 
 const PlayerContext = createContext<PlayerContextValue | null>(null);
@@ -50,18 +56,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     AsyncStorage.getItem(STORAGE_KEY)
       .then((raw) => {
         if (!raw) return;
-        const saved = JSON.parse(raw);
-        // Versão antiga só tinha missões marcadas, sem quantidade: considera a meta inteira feita.
-        if (!saved.progress) {
-          const targets = Object.fromEntries(dailyMissions({ ...saved, progress: {} }).map((m) => [m.id, m.target]));
-          saved.progress = Object.fromEntries(
-            Object.entries(saved.completed as Record<string, string[]>).map(([day, ids]) => [
-              day,
-              Object.fromEntries(ids.map((id) => [id, targets[id]])),
-            ]),
-          );
-        }
-        setPlayer({ fast: null, fasts: [], workout: null, workouts: [], ...saved });
+        setPlayer(normalize(JSON.parse(raw)));
       })
       .finally(() => setLoading(false));
   }, []);
@@ -96,6 +91,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       fasts: [],
       workout: null,
       workouts: [],
+      settings: DEFAULT_SETTINGS,
     });
   }
 
@@ -197,6 +193,25 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     save({ ...reverted, workout: null });
   }
 
+  function updateSettings(settings: Settings) {
+    if (player) save({ ...player, settings });
+  }
+
+  function updateProfile(data: { name: string; heightCm: number; goalWeightKg: number }) {
+    if (player) save({ ...player, ...data });
+  }
+
+  // Usado pela importação de backup: troca todos os dados pelos do arquivo.
+  function replacePlayer(next: Player) {
+    save(normalize(next));
+  }
+
+  function resetAll() {
+    setPlayer(null);
+    AsyncStorage.removeItem(STORAGE_KEY);
+    cancelReminders();
+  }
+
   return (
     <PlayerContext.Provider value={{
         player,
@@ -212,10 +227,39 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         removeSet,
         finishWorkout,
         cancelWorkout,
+        updateSettings,
+        updateProfile,
+        replacePlayer,
+        resetAll,
       }}>
       {children}
     </PlayerContext.Provider>
   );
+}
+
+// Completa dados salvos por versões antigas do app (ou vindos de um backup antigo).
+// Recebe o dado bruto do armazenamento, por isso o tipo any.
+function normalize(saved: any): Player {
+  saved.completed ??= {};
+  // Versão antiga só tinha missões marcadas, sem quantidade: considera a meta inteira feita.
+  if (!saved.progress) {
+    const missions = dailyMissions({ ...saved, progress: {}, settings: DEFAULT_SETTINGS });
+    const targets = Object.fromEntries(missions.map((m) => [m.id, m.target]));
+    saved.progress = Object.fromEntries(
+      Object.entries(saved.completed as Record<string, string[]>).map(([day, ids]) => [
+        day,
+        Object.fromEntries(ids.map((id) => [id, targets[id]])),
+      ]),
+    );
+  }
+  return {
+    fast: null,
+    fasts: [],
+    workout: null,
+    workouts: [],
+    ...saved,
+    settings: { ...DEFAULT_SETTINGS, ...saved.settings },
+  };
 }
 
 function levelChange(before: Player, after: Player) {

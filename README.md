@@ -12,6 +12,8 @@ App Android para criar hábitos saudáveis e perder peso, inspirado no "Sistema"
 - **Passos automáticos:** leitura dos passos do dia pelo Health Connect (Google Fit, Samsung Health etc.), com calorias e distância estimadas
 - **Treinos em casa e na academia:** cronômetro, séries com repetições/carga/minutos, calorias pela fórmula MET, XP e histórico; flexões, abdominais e agachamentos somam nas missões
 - **Evolução:** peso perdido, sequência, gráfico de peso com meta e gráficos dos últimos 7 dias (missões, água, calorias)
+- **Configurações:** editar perfil, meta de água, horário de dormir e os horários de cada lembrete (ou desligá-los)
+- **Backup:** exportar os dados num arquivo e importar de volta (ex.: celular novo)
 - **Lembretes do Sistema:** notificações de água, refeições, treino e sono que cobram exatamente o que falta
 
 ## Tecnologias
@@ -20,6 +22,7 @@ App Android para criar hábitos saudáveis e perder peso, inspirado no "Sistema"
 - Expo Router (navegação por abas)
 - AsyncStorage (dados salvos no celular)
 - expo-notifications (lembretes locais)
+- expo-file-system, expo-sharing, expo-document-picker (backup)
 - react-native-health-connect (passos)
 - react-native-svg (gráficos)
 - EAS Build (APK gerado na nuvem)

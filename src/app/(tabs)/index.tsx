@@ -1,4 +1,6 @@
 // Tela de Status: nível, rank, XP, atributos e evolução do peso.
+import FontAwesome from '@expo/vector-icons/FontAwesome';
+import { Link } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -49,6 +51,13 @@ export default function Status() {
   return (
     <SafeAreaView style={styles.screen}>
       <ScrollView contentContainerStyle={styles.content}>
+        <View style={styles.topBar}>
+          <Link href="/configuracoes" asChild>
+            <Pressable hitSlop={12} accessibilityLabel="Configurações">
+              <FontAwesome name="cog" size={24} color={colors.glow} />
+            </Pressable>
+          </Link>
+        </View>
         <SystemPanel title="STATUS">
           <Row label="Nome" value={player.name} />
           <Row label="Nível" value={String(level)} />
@@ -107,7 +116,8 @@ function Row({ label, value, highlight }: { label: string; value: string; highli
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  content: { padding: 16 },
+  content: { padding: 16, paddingTop: 8 },
+  topBar: { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 8 },
   row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 },
   rowLabel: { color: colors.muted, fontSize: 15 },
   rowValue: { color: colors.text, fontSize: 15, fontWeight: '700' },

@@ -12,7 +12,7 @@ import {
   Player,
   stepCalories,
   streak,
-  waterGoalMl,
+  waterTargetMl,
 } from '@/lib/game';
 import { usePlayer } from '@/lib/player';
 import { colors } from '@/lib/theme';
@@ -93,7 +93,7 @@ export default function Evolucao() {
         <SystemPanel title="ÁGUA POR DIA (L)">
           <ColumnChart
             data={water}
-            target={waterGoalMl(weight)}
+            target={waterTargetMl(player)}
             format={(v) => formatAmount(v, 'ml')}
             tickFormat={(v) => (v / 1000).toLocaleString('pt-BR')}
           />

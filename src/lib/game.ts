@@ -40,7 +40,54 @@ export type Player = {
   // treino em andamento e histórico
   workout: ActiveWorkout | null;
   workouts: WorkoutRecord[];
+  settings: Settings;
 };
+
+// ---------- Configurações ----------
+
+// Horários sempre no formato "HH:MM".
+export type Settings = {
+  waterGoalMl: number | null; // null = automático pelo peso
+  bedtime: string;
+  reminders: { agua: boolean; refeicoes: boolean; treino: boolean; sono: boolean };
+  water: { start: string; end: string; everyHours: number };
+  meals: { name: string; time: string }[];
+  trainingTimes: string[];
+};
+
+export const DEFAULT_SETTINGS: Settings = {
+  waterGoalMl: null,
+  bedtime: '23:00',
+  reminders: { agua: true, refeicoes: true, treino: true, sono: true },
+  water: { start: '08:00', end: '20:00', everyHours: 2 },
+  meals: [
+    { name: 'café da manhã', time: '07:30' },
+    { name: 'almoço', time: '12:00' },
+    { name: 'lanche', time: '15:30' },
+    { name: 'jantar', time: '19:30' },
+  ],
+  trainingTimes: ['12:30', '18:00', '21:00'],
+};
+
+export function isValidTime(t: string) {
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(t);
+}
+
+export function parseTime(t: string): [number, number] {
+  const [h, m] = t.split(':').map(Number);
+  return [h, m];
+}
+
+// "23:00" menos 30 min = "22:30"
+export function minusMinutes(t: string, minutes: number): [number, number] {
+  const [h, m] = parseTime(t);
+  const total = (h * 60 + m - minutes + 24 * 60) % (24 * 60);
+  return [Math.floor(total / 60), total % 60];
+}
+
+export function waterTargetMl(player: Player) {
+  return player.settings.waterGoalMl ?? waterGoalMl(currentWeight(player));
+}
 
 export type FastRecord = { start: number; end: number; goalHours: number; success: boolean };
 
@@ -119,7 +166,7 @@ export function dailyMissions(player: Player): Mission[] {
   const level = levelFromXp(player.xp);
   const reps = Math.min(100, 10 + (level - 1) * 2);
   const steps = Math.min(10000, 3000 + (level - 1) * 250);
-  const water = waterGoalMl(currentWeight(player));
+  const water = waterTargetMl(player);
 
   return [
     { id: 'agua', title: 'Hidratação', detail: `Beber ${formatAmount(water, 'ml')} de água`, xp: 20, attribute: 'resistencia', target: water, unit: 'ml', steps: [200, 300, 500] },
@@ -128,7 +175,7 @@ export function dailyMissions(player: Player): Mission[] {
     { id: 'abdominais', title: 'Abdominais', detail: `${reps} abdominais`, xp: 15, attribute: 'forca', target: reps, unit: 'reps', steps: [1, 5, 10] },
     { id: 'agachamentos', title: 'Agachamentos', detail: `${reps} agachamentos`, xp: 15, attribute: 'forca', target: reps, unit: 'reps', steps: [1, 5, 10] },
     { id: 'passos', title: 'Caminhada', detail: `${formatAmount(steps, 'passos')}`, xp: 20, attribute: 'resistencia', target: steps, unit: 'passos', steps: [500, 1000, 2000] },
-    { id: 'sono', title: 'Descanso', detail: 'Dormir até 23h (7h+ de sono)', xp: 20, attribute: 'vitalidade', target: 1 },
+    { id: 'sono', title: 'Descanso', detail: `Dormir até ${player.settings.bedtime} (7h+ de sono)`, xp: 20, attribute: 'vitalidade', target: 1 },
   ];
 }
 
