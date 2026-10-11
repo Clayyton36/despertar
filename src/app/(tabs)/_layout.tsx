@@ -25,6 +25,10 @@ export default function TabLayout() {
         options={{ title: 'Status', tabBarIcon: ({ color }) => <FontAwesome size={24} name="user" color={color} /> }}
       />
       <Tabs.Screen
+        name="evolucao"
+        options={{ title: 'Evolução', tabBarIcon: ({ color }) => <FontAwesome size={24} name="line-chart" color={color} /> }}
+      />
+      <Tabs.Screen
         name="missoes"
         options={{ title: 'Missões', tabBarIcon: ({ color }) => <FontAwesome size={24} name="list-ul" color={color} /> }}
       />
