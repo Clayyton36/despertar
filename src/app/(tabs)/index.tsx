@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { RANK_FORMS, RankAvatar } from '@/components/RankAvatar';
 import { SystemPanel } from '@/components/SystemPanel';
 import {
   Attribute,
@@ -15,6 +16,7 @@ import {
   levelFromXp,
   missionProgress,
   rankFromLevel,
+  RANKS,
   stepCalories,
   streak,
   today,
@@ -26,12 +28,16 @@ import { colors } from '@/lib/theme';
 export default function Status() {
   const { player, logWeight } = usePlayer();
   const [newWeight, setNewWeight] = useState('');
+  const [showForms, setShowForms] = useState(false);
   if (!player) return null;
 
   const level = levelFromXp(player.xp);
   const levelStart = xpForLevel(level);
   const levelEnd = xpForLevel(level + 1);
   const progress = (player.xp - levelStart) / (levelEnd - levelStart);
+  const rank = rankFromLevel(level);
+  const rankIndex = RANKS.findIndex((r) => r.rank === rank);
+  const nextRank = RANKS[rankIndex + 1];
 
   const weight = currentWeight(player);
   const lost = player.startWeightKg - weight;
@@ -59,6 +65,31 @@ export default function Status() {
           </Link>
         </View>
         <SystemPanel title="STATUS">
+          <Pressable style={styles.avatar} onPress={() => setShowForms((v) => !v)} accessibilityLabel="Ver as formas de cada rank">
+            <RankAvatar rank={rank} size={170} />
+            <Text style={[styles.formTitle, { color: RANK_FORMS[rank].color }]}>
+              RANK {rank} · {RANK_FORMS[rank].title.toUpperCase()}
+            </Text>
+            <Text style={styles.formHint}>
+              {nextRank ? `Próxima forma no nível ${nextRank.minLevel} (Rank ${nextRank.rank})` : 'Forma máxima alcançada'}
+              {showForms ? '' : '  •  toque para ver todas'}
+            </Text>
+          </Pressable>
+          {showForms && (
+            <View style={styles.forms}>
+              {RANKS.map((r, i) => (
+                <View key={r.rank} style={styles.form}>
+                  <RankAvatar rank={r.rank} size={88} locked={i > rankIndex} />
+                  <Text style={[styles.formLabel, i <= rankIndex && { color: RANK_FORMS[r.rank].color }]}>
+                    {i > rankIndex ? '🔒 ' : ''}
+                    {r.rank} · {RANK_FORMS[r.rank].title}
+                  </Text>
+                  <Text style={styles.formLevel}>nível {r.minLevel}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+
           <Row label="Nome" value={player.name} />
           <Row label="Nível" value={String(level)} />
           <Row label="Rank" value={rankFromLevel(level)} highlight />
@@ -118,6 +149,13 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: 16, paddingTop: 8 },
   topBar: { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 8 },
+  avatar: { alignItems: 'center', marginBottom: 12 },
+  formTitle: { fontSize: 15, fontWeight: '800', letterSpacing: 2, marginTop: 6 },
+  formHint: { color: colors.muted, fontSize: 12, marginTop: 4, textAlign: 'center' },
+  forms: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginBottom: 12 },
+  form: { width: '30%', alignItems: 'center' },
+  formLabel: { color: colors.muted, fontSize: 11, fontWeight: '700', textAlign: 'center' },
+  formLevel: { color: colors.muted, fontSize: 10 },
   row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 },
   rowLabel: { color: colors.muted, fontSize: 15 },
   rowValue: { color: colors.text, fontSize: 15, fontWeight: '700' },
