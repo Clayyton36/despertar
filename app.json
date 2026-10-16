@@ -47,6 +47,12 @@
           "resizeMode": "contain",
           "backgroundColor": "#05070F"
         }
+      ],
+      [
+        "expo-audio",
+        {
+          "enableBackgroundPlayback": false
+        }
       ]
     ],
     "scheme": "despertar",
