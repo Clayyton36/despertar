@@ -1,8 +1,10 @@
-// Jejum intermitente: escolha um desafio, acompanhe o timer e encerre para receber o XP.
-import { useEffect, useState } from 'react';
+// Dieta: refeições do dia e jejum intermitente (escolha um desafio, acompanhe o timer e
+// encerre para receber o XP).
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { MealsPanel } from '@/components/MealsPanel';
 import { SystemPanel } from '@/components/SystemPanel';
 import { FAST_CHALLENGES, fastEnd, fastSuccesses, FASTS_TO_UNLOCK, isChallengeUnlocked } from '@/lib/game';
 import { usePlayer } from '@/lib/player';
@@ -12,6 +14,7 @@ export default function Jejum() {
   const { player, startFast, endFast } = usePlayer();
   const [now, setNow] = useState(() => Date.now());
   const [message, setMessage] = useState<{ text: string; success: boolean } | null>(null);
+  const scroll = useRef<ScrollView>(null);
 
   // Atualiza o relógio a cada segundo só enquanto há um jejum rodando.
   const fasting = !!player?.fast;
@@ -36,7 +39,7 @@ export default function Jejum() {
 
   return (
     <SafeAreaView style={styles.screen}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView ref={scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {message && (
           <Pressable onPress={() => setMessage(null)}>
             <SystemPanel title="SISTEMA" style={{ borderColor: message.success ? colors.gold : colors.danger }}>
@@ -45,9 +48,16 @@ export default function Jejum() {
           </Pressable>
         )}
 
-        {fast ? (
-          <FastTimer start={fast.start} end={fastEnd(fast)} goalHours={fast.goalHours} now={now} onFinish={finish} />
-        ) : (
+        {fast && <FastTimer start={fast.start} end={fastEnd(fast)} goalHours={fast.goalHours} now={now} onFinish={finish} />}
+
+        <MealsPanel
+          onMessage={(text, success) => {
+            setMessage({ text, success });
+            scroll.current?.scrollTo({ y: 0, animated: true });
+          }}
+        />
+
+        {!fast && (
           <SystemPanel title="DESAFIOS DE JEJUM">
             <Text style={styles.subtitle}>Complete {FASTS_TO_UNLOCK}x um desafio para liberar o próximo.</Text>
             {FAST_CHALLENGES.map((c, i) => {
@@ -80,7 +90,7 @@ export default function Jejum() {
           </SystemPanel>
         )}
 
-        <SystemPanel title="HISTÓRICO">
+        <SystemPanel title="HISTÓRICO DE JEJUM">
           {player.fasts.length === 0 ? (
             <Text style={styles.muted}>Nenhum jejum ainda.</Text>
           ) : (

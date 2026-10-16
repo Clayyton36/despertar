@@ -1,5 +1,6 @@
 // Missões diárias: registre quanto fez (ex.: +200 ml, +5 flexões) e veja quanto falta.
 // Bater a meta dá XP e aumenta o atributo ligado à missão.
+import { router } from 'expo-router';
 import { ReactNode, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -12,9 +13,11 @@ import {
   dailyMissions,
   formatAmount,
   isDone,
+  mealsOn,
   Mission,
   missionProgress,
   PENALTY_PER_MISSION,
+  plannedMeals,
   Player,
   remainingText,
   stepCalories,
@@ -56,6 +59,8 @@ export default function Missoes() {
               >
                 {m.id === 'passos' && <StepsInfo player={player} {...steps} />}
               </QuantityMission>
+            ) : m.id === 'refeicoes' ? (
+              <FeedingMission key={m.id} player={player} mission={m} />
             ) : (
               <CheckMission key={m.id} player={player} mission={m} onAdd={(amount) => addProgress(m.id, amount)} />
             ),
@@ -99,6 +104,25 @@ function CheckMission({ player, mission, onAdd }: MissionProps) {
     <Pressable style={styles.mission} onPress={() => onAdd(done ? -1 : 1)}>
       <Header mission={mission} done={done} />
       <Text style={styles.hint}>{done ? 'Toque para desmarcar' : 'Toque quando cumprir'}</Text>
+    </Pressable>
+  );
+}
+
+// Alimentação conclui sozinha pelas refeições registradas na aba Dieta.
+function FeedingMission({ player, mission }: Omit<MissionProps, 'onAdd'>) {
+  const done = isDone(player, mission);
+  const meals = mealsOn(player);
+  const planned = plannedMeals(player);
+  const logged = planned.filter((p) => meals.some((m) => m.slot === p.name)).length;
+  const junk = meals.some((m) => m.junk);
+  return (
+    <Pressable style={styles.mission} onPress={() => router.navigate('/jejum')}>
+      <Header mission={mission} done={done} />
+      <Text style={[styles.hint, junk && { color: colors.danger }]}>
+        {junk
+          ? 'Teve besteira hoje: missão não cumprida.'
+          : `${logged} de ${planned.length} refeições registradas. Toque para registrar na aba Dieta.`}
+      </Text>
     </Pressable>
   );
 }

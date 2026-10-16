@@ -12,7 +12,9 @@ import {
   exerciseById,
   FAST_CHALLENGES,
   fastEnd,
+  feedingDone,
   levelFromXp,
+  MealRecord,
   Player,
   rankFromLevel,
   Settings,
@@ -49,6 +51,9 @@ type PlayerContextValue = {
   logWeight: (kg: number) => void;
   startFast: (goalHours: number) => void;
   endFast: () => { success: boolean };
+  // Durante um jejum, registrar refeição encerra o jejum (com o XP, se a meta já foi batida).
+  addMeal: (meal: Omit<MealRecord, 'at'>) => { fastEnded: { success: boolean; goalHours: number } | null };
+  removeMeal: (at: number) => void;
   startWorkout: (mode: WorkoutMode) => void;
   logSet: (set: WorkoutSet) => void;
   removeSet: (index: number) => void;
@@ -149,6 +154,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       fasts: [],
       workout: null,
       workouts: [],
+      meals: [],
       settings: DEFAULT_SETTINGS,
       achievements: {},
       lastCheckDay: today(),
@@ -174,22 +180,28 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     save({ ...player, fast: { start: Date.now(), goalHours } });
   }
 
-  // Encerrar depois da meta = sucesso (XP + Disciplina). Antes da meta, só registra, sem penalidade.
   function endFast() {
     if (!player?.fast) return { success: false };
-    const end = Date.now();
-    const success = end >= fastEnd(player.fast);
-    const xp = success ? FAST_CHALLENGES.find((c) => c.hours === player.fast!.goalHours)!.xp : 0;
-
-    const next: Player = {
-      ...player,
-      xp: player.xp + xp,
-      attributes: { ...player.attributes, disciplina: player.attributes.disciplina + (success ? 1 : 0) },
-      fast: null,
-      fasts: [...player.fasts, { ...player.fast, end, success }],
-    };
+    const { player: next, success } = closeFast(player);
     save(next);
     return { success };
+  }
+
+  // A missão Alimentação acompanha as refeições de hoje: conclui ou desfaz sozinha.
+  function withFeeding(p: Player) {
+    return withProgress(p, 'refeicoes', feedingDone(p) ? 1 : 0);
+  }
+
+  function addMeal(meal: Omit<MealRecord, 'at'>) {
+    if (!player) return { fastEnded: null };
+    const goalHours = player.fast?.goalHours;
+    const { player: afterFast, success } = player.fast ? closeFast(player) : { player, success: false };
+    save(withFeeding({ ...afterFast, meals: [...afterFast.meals, { ...meal, at: Date.now() }] }));
+    return { fastEnded: goalHours ? { success, goalHours } : null };
+  }
+
+  function removeMeal(at: number) {
+    if (player) save(withFeeding({ ...player, meals: player.meals.filter((m) => m.at !== at) }));
   }
 
   function startWorkout(mode: WorkoutMode) {
@@ -248,8 +260,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     save({ ...reverted, workout: null });
   }
 
+  // Mudar os horários de refeição muda o que a missão Alimentação exige.
   function updateSettings(settings: Settings) {
-    if (player) save({ ...player, settings });
+    if (player) save(withFeeding({ ...player, settings }));
   }
 
   function updateProfile(data: { name: string; heightCm: number; goalWeightKg: number }) {
@@ -279,6 +292,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         logWeight,
         startFast,
         endFast,
+        addMeal,
+        removeMeal,
         startWorkout,
         logSet,
         removeSet,
@@ -292,6 +307,24 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       {children}
     </PlayerContext.Provider>
   );
+}
+
+// Encerrar depois da meta = sucesso (XP + Disciplina). Antes da meta, só registra, sem penalidade.
+function closeFast(player: Player): { player: Player; success: boolean } {
+  const fast = player.fast!;
+  const end = Date.now();
+  const success = end >= fastEnd(fast);
+  const xp = success ? FAST_CHALLENGES.find((c) => c.hours === fast.goalHours)!.xp : 0;
+  return {
+    success,
+    player: {
+      ...player,
+      xp: player.xp + xp,
+      attributes: { ...player.attributes, disciplina: player.attributes.disciplina + (success ? 1 : 0) },
+      fast: null,
+      fasts: [...player.fasts, { ...fast, end, success }],
+    },
+  };
 }
 
 // Completa dados salvos por versões antigas do app (ou vindos de um backup antigo).
@@ -314,6 +347,7 @@ function normalize(saved: any): Player {
     fasts: [],
     workout: null,
     workouts: [],
+    meals: [],
     ...saved,
     achievements: {},
     // sem data de verificação (dados antigos): começa hoje, sem penalizar o passado

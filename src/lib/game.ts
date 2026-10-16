@@ -40,6 +40,8 @@ export type Player = {
   // treino em andamento e histórico
   workout: ActiveWorkout | null;
   workouts: WorkoutRecord[];
+  // refeições registradas (a missão Alimentação é calculada a partir delas)
+  meals: MealRecord[];
   settings: Settings;
   // conquistas desbloqueadas (id -> quando) e último dia já verificado para penalidades
   achievements: Record<string, number>;
@@ -173,7 +175,7 @@ export function dailyMissions(player: Player): Mission[] {
 
   return [
     { id: 'agua', title: 'Hidratação', detail: `Beber ${formatAmount(water, 'ml')} de água`, xp: 20, attribute: 'resistencia', target: water, unit: 'ml', steps: [200, 300, 500] },
-    { id: 'refeicoes', title: 'Alimentação', detail: 'Comer nos horários e sem besteira', xp: 20, attribute: 'disciplina', target: 1 },
+    { id: 'refeicoes', title: 'Alimentação', detail: `Registrar ${plannedMeals(player).length} refeições sem besteira`, xp: 20, attribute: 'disciplina', target: 1 },
     { id: 'flexoes', title: 'Flexões', detail: `${reps} flexões`, xp: 15, attribute: 'forca', target: reps, unit: 'reps', steps: [1, 5, 10] },
     { id: 'abdominais', title: 'Abdominais', detail: `${reps} abdominais`, xp: 15, attribute: 'forca', target: reps, unit: 'reps', steps: [1, 5, 10] },
     { id: 'agachamentos', title: 'Agachamentos', detail: `${reps} agachamentos`, xp: 15, attribute: 'forca', target: reps, unit: 'reps', steps: [1, 5, 10] },
@@ -248,6 +250,44 @@ export function withProgress(player: Player, missionId: string, value: number): 
     progress: { ...player.progress, [day]: { ...player.progress[day], [missionId]: after } },
     completed: { ...player.completed, [day]: nowDone ? [...done, missionId] : done },
   };
+}
+
+// ---------- Refeições ----------
+
+// slot = nome de uma refeição dos horários (ex.: "almoço") ou EXTRA_MEAL para o que comer fora deles.
+export type MealRecord = { at: number; slot: string; description: string; kcal?: number; junk: boolean };
+export const EXTRA_MEAL = 'extra';
+
+export function plannedMeals(player: Player) {
+  return player.settings.meals;
+}
+
+export function mealsOn(player: Player, date = today()) {
+  return player.meals.filter((m) => dateKey(new Date(m.at)) === date).sort((a, b) => a.at - b.at);
+}
+
+export function mealKcal(player: Player, date = today()) {
+  return mealsOn(player, date).reduce((sum, m) => sum + (m.kcal ?? 0), 0);
+}
+
+// Missão Alimentação: todas as refeições dos horários registradas e nenhuma "besteira" no dia.
+export function feedingDone(player: Player, date = today()) {
+  const meals = mealsOn(player, date);
+  if (meals.some((m) => m.junk)) return false;
+  return plannedMeals(player).every((p) => meals.some((m) => m.slot === p.name));
+}
+
+// Próxima refeição dos horários ainda não registrada hoje (a mais próxima do horário atual).
+export function suggestedSlot(player: Player, now = new Date()) {
+  const logged = new Set(mealsOn(player).map((m) => m.slot));
+  const minutes = now.getHours() * 60 + now.getMinutes();
+  const open = plannedMeals(player).filter((p) => !logged.has(p.name));
+  if (!open.length) return EXTRA_MEAL;
+  const distance = (t: string) => {
+    const [h, m] = parseTime(t);
+    return Math.abs(h * 60 + m - minutes);
+  };
+  return open.reduce((best, p) => (distance(p.time) < distance(best.time) ? p : best)).name;
 }
 
 // ---------- Treinos ----------
@@ -343,6 +383,8 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'sequencia-30', title: 'Disciplina de Ferro', detail: '30 dias seguidos com tudo concluído', icon: '🛡️', xp: 200, test: (p) => bestStreak(p) >= 30 },
   { id: 'hidratado', title: 'Hidratado', detail: 'Bater a meta de água em 7 dias', icon: '💧', xp: 30, test: (p) => missionDays(p, 'agua') >= 7 },
   { id: 'dorminhoco', title: 'Sono em Dia', detail: 'Cumprir a missão de sono em 7 dias', icon: '🌙', xp: 30, test: (p) => missionDays(p, 'sono') >= 7 },
+  { id: 'diario-alimentar', title: 'Diário Alimentar', detail: 'Registrar refeições em 7 dias', icon: '🍽️', xp: 30, test: (p) => new Set(p.meals.map((m) => dateKey(new Date(m.at)))).size >= 7 },
+  { id: 'dieta-limpa', title: 'Dieta Limpa', detail: 'Cumprir a missão de alimentação em 7 dias', icon: '🥗', xp: 30, test: (p) => missionDays(p, 'refeicoes') >= 7 },
   { id: 'passos-10k', title: 'Andarilho', detail: 'Fazer 10.000 passos num dia', icon: '👟', xp: 30, test: (p) => Object.values(p.progress).some((d) => (d.passos ?? 0) >= 10000) },
   { id: 'jejum-12', title: 'Primeiro Jejum', detail: 'Completar um jejum de 12h', icon: '⏳', xp: 20, test: (p) => successes(p, 12) },
   { id: 'jejum-16', title: 'Mestre do Jejum', detail: 'Completar um jejum de 16h', icon: '⌛', xp: 50, test: (p) => successes(p, 16) },

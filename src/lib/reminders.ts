@@ -4,7 +4,18 @@ import Constants, { ExecutionEnvironment } from 'expo-constants';
 import type * as NotificationsModule from 'expo-notifications';
 import { Platform } from 'react-native';
 
-import { amountText, dailyMissions, fastEnd, isDone, minusMinutes, Mission, parseTime, Player, remainingText } from './game';
+import {
+  amountText,
+  dailyMissions,
+  fastEnd,
+  isDone,
+  mealsOn,
+  minusMinutes,
+  Mission,
+  parseTime,
+  Player,
+  remainingText,
+} from './game';
 
 const CHANNEL_ID = 'lembretes';
 // Agenda hoje + os próximos dias, para os lembretes continuarem mesmo sem abrir o app.
@@ -107,8 +118,17 @@ export async function syncReminders(player: Player) {
     }
 
     if (settings.reminders.refeicoes && pending(byId.refeicoes)) {
-      for (const meal of settings.meals) {
-        jobs.push(schedule(parseTime(meal.time), '[SISTEMA] Alimentação', `Hora do ${meal.name}. Coma no horário e sem besteira.`, true));
+      // Hoje, só as refeições que ainda não foram registradas.
+      const logged = new Set(isToday ? mealsOn(player).map((m) => m.slot) : []);
+      for (const meal of settings.meals.filter((m) => !logged.has(m.name))) {
+        jobs.push(
+          schedule(
+            parseTime(meal.time),
+            '[SISTEMA] Alimentação',
+            `Hora do ${meal.name}. Coma sem besteira e registre na aba Dieta.`,
+            true,
+          ),
+        );
       }
     }
 

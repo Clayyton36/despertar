@@ -10,6 +10,7 @@ import {
   dailyMissions,
   dateKey,
   formatAmount,
+  mealKcal,
   Player,
   stepCalories,
   streak,
@@ -55,6 +56,8 @@ export default function Evolucao() {
   const missionsDone: Point[] = days.map((d) => ({ label: d.label, value: player.completed[d.key]?.length ?? 0 }));
   const water: Point[] = days.map((d) => ({ label: d.label, value: player.progress[d.key]?.agua ?? 0 }));
   const kcal: Point[] = days.map((d) => ({ label: d.label, value: caloriesOn(player, d.key) }));
+  const eaten: Point[] = days.map((d) => ({ label: d.label, value: mealKcal(player, d.key) }));
+  const hasEaten = eaten.some((d) => d.value > 0);
 
   const workoutsWeek = player.workouts.filter((w) => dateKey(new Date(w.start)) >= weekStart).length;
   const fastsDone = player.fasts.filter((f) => f.success).length;
@@ -104,6 +107,16 @@ export default function Evolucao() {
           <Text style={styles.caption}>Passos + treinos</Text>
           <ColumnChart data={kcal} format={(v) => `${v.toLocaleString('pt-BR')} kcal`} />
         </SystemPanel>
+
+        {hasEaten && (
+          <SystemPanel title="CALORIAS CONSUMIDAS (KCAL)">
+            <Text style={styles.caption}>Das refeições registradas com calorias</Text>
+            <ColumnChart
+              data={eaten}
+              format={(v, i) => `${v.toLocaleString('pt-BR')} kcal • gastou ${kcal[i].value.toLocaleString('pt-BR')}`}
+            />
+          </SystemPanel>
+        )}
 
         <Text style={styles.footnote}>Toque num ponto ou coluna para ver o valor do dia.</Text>
 

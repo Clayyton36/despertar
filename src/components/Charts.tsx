@@ -129,8 +129,8 @@ export function ColumnChart({
 }: {
   data: Point[];
   target?: number;
-  // format = valor no destaque; tickFormat = número curto do eixo (a unidade fica no título)
-  format?: (v: number) => string;
+  // format = valor no destaque (recebe também o índice do dia); tickFormat = número curto do eixo
+  format?: (v: number, i: number) => string;
   tickFormat?: (v: number) => string;
   height?: number;
 }) {
@@ -161,7 +161,7 @@ export function ColumnChart({
   return (
     <View onLayout={onLayout}>
       <Text style={styles.readout}>
-        {data[active].label}: <Text style={styles.readoutValue}>{format(data[active].value)}</Text>
+        {data[active].label}: <Text style={styles.readoutValue}>{format(data[active].value, active)}</Text>
       </Text>
       {width > 0 && (
         <View>

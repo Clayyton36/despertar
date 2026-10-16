@@ -38,7 +38,7 @@ export default function TabLayout() {
       />
       <Tabs.Screen
         name="jejum"
-        options={{ title: 'Jejum', tabBarIcon: ({ color }) => <FontAwesome size={24} name="hourglass-half" color={color} /> }}
+        options={{ title: 'Dieta', tabBarIcon: ({ color }) => <FontAwesome size={24} name="cutlery" color={color} /> }}
       />
     </Tabs>
   );
