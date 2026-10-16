@@ -18,6 +18,7 @@ import {
   waterGoalMl,
 } from '@/lib/game';
 import { usePlayer } from '@/lib/player';
+import { playSound } from '@/lib/sounds';
 import { colors } from '@/lib/theme';
 
 const toNumber = (v: string) => Number(v.replace(',', '.'));
@@ -193,6 +194,18 @@ function SettingsForm({ player }: { player: Player }) {
           />
         </SystemPanel>
 
+        <SystemPanel title="SONS">
+          <Toggle label="Sons do Sistema" value={draft.sounds} onChange={(v) => set('sounds', v)} />
+          <Text style={styles.hint}>
+            Missão concluída, level up, conquistas e Dungeon. Não tocam com o celular no silencioso.
+          </Text>
+          {draft.sounds && (
+            <Pressable style={styles.testSound} onPress={() => playSound('nivel', true)}>
+              <Text style={styles.buttonText}>▶ TESTAR SOM</Text>
+            </Pressable>
+          )}
+        </SystemPanel>
+
         {status && (
           <Text style={[styles.status, { color: status.error ? colors.danger : colors.success }]}>{status.text}</Text>
         )}
@@ -355,6 +368,7 @@ const styles = StyleSheet.create({
   toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
   toggleLabel: { color: colors.text, fontWeight: '700', flex: 1 },
   status: { textAlign: 'center', marginBottom: 10 },
+  testSound: { borderWidth: 1, borderColor: colors.border, borderRadius: 4, paddingVertical: 10, alignItems: 'center', marginTop: 10 },
   saveButton: {
     backgroundColor: colors.border,
     borderRadius: 4,

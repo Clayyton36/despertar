@@ -60,6 +60,7 @@ export type Settings = {
   water: { start: string; end: string; everyHours: number };
   meals: { name: string; time: string }[];
   trainingTimes: string[];
+  sounds: boolean;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -74,6 +75,7 @@ export const DEFAULT_SETTINGS: Settings = {
     { name: 'jantar', time: '19:30' },
   ],
   trainingTimes: ['12:30', '18:00', '21:00'],
+  sounds: true,
 };
 
 export function isValidTime(t: string) {

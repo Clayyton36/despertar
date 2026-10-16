@@ -29,6 +29,7 @@ import {
   WorkoutSet,
 } from './game';
 import { claimQuests, Quest } from './quests';
+import { playSound, setSoundsEnabled } from './sounds';
 import { cancelReminders, setupReminders, syncReminders } from './reminders';
 
 const STORAGE_KEY = 'despertar:player';
@@ -111,6 +112,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         news.push({ kind: 'level', level, rankUp: rank !== rankFromLevel(levelFromXp(before.xp)) ? rank : null });
       }
     }
+    setSoundsEnabled(next.settings.sounds);
+    // Missão diária recém-concluída toca o "blip" (se não houver aviso maior, que tem o próprio som).
+    const doneBefore = before?.completed[today()]?.length ?? 0;
+    if (before && !news.length && (next.completed[today()]?.length ?? 0) > doneBefore) playSound('missao');
     if (news.length) setEvents((list) => [...list, ...news.map((e) => ({ ...e, id: ++eventId.current }))]);
     playerRef.current = next;
     setPlayer(next);

@@ -5,6 +5,7 @@ import { Animated, Pressable, StyleSheet, Text, Vibration } from 'react-native';
 
 import { ATTRIBUTE_LABELS, PENALTY_PER_MISSION } from '@/lib/game';
 import { SystemEvent, usePlayer } from '@/lib/player';
+import { playSound, SoundName } from '@/lib/sounds';
 import { colors } from '@/lib/theme';
 
 const DURATION_MS = 4000;
@@ -22,6 +23,7 @@ function AlertCard({ event, onDone }: { event: SystemEvent; onDone: () => void }
   const { title, body, accent, big } = describe(event);
 
   useEffect(() => {
+    playSound(soundFor(event));
     Vibration.vibrate(event.kind === 'penalty' ? [0, 400] : [0, 80, 60, 120]);
     Animated.spring(anim, { toValue: 1, useNativeDriver: true, friction: 6 }).start();
     const timer = setTimeout(close, DURATION_MS);
@@ -50,6 +52,20 @@ function AlertCard({ event, onDone }: { event: SystemEvent; onDone: () => void }
       </Animated.View>
     </Animated.View>
   );
+}
+
+function soundFor(event: SystemEvent): SoundName {
+  switch (event.kind) {
+    case 'level':
+      return event.rankUp ? 'rank' : 'nivel';
+    case 'achievement':
+    case 'achievements':
+      return 'conquista';
+    case 'quest':
+      return event.quest.id === 'dungeon' ? 'dungeon' : 'semanal';
+    case 'penalty':
+      return 'penalidade';
+  }
 }
 
 function describe(event: SystemEvent): { title: string; body: string; accent: string; big?: string } {
