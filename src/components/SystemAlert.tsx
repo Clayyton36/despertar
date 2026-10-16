@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { Animated, Pressable, StyleSheet, Text, Vibration } from 'react-native';
 
-import { PENALTY_PER_MISSION } from '@/lib/game';
+import { ATTRIBUTE_LABELS, PENALTY_PER_MISSION } from '@/lib/game';
 import { SystemEvent, usePlayer } from '@/lib/player';
 import { colors } from '@/lib/theme';
 
@@ -82,6 +82,20 @@ function describe(event: SystemEvent): { title: string; body: string; accent: st
         body: `Você desbloqueou ${event.count} conquistas (+${event.xp} XP). Veja todas na aba Evolução.`,
         accent: colors.gold,
       };
+    case 'quest':
+      return event.quest.id === 'dungeon'
+        ? {
+            title: 'DUNGEON CONCLUÍDA',
+            big: event.quest.icon,
+            body: `${event.quest.title} foi conquistada!\n+${event.quest.xp} XP, +${event.quest.points} ${ATTRIBUTE_LABELS[event.quest.attribute]}`,
+            accent: colors.gold,
+          }
+        : {
+            title: 'MISSÃO SEMANAL CONCLUÍDA',
+            big: event.quest.icon,
+            body: `${event.quest.title}\n+${event.quest.xp} XP, +${event.quest.points} ${ATTRIBUTE_LABELS[event.quest.attribute]}`,
+            accent: colors.glow,
+          };
     case 'penalty':
       return {
         title: 'PENALIDADE',

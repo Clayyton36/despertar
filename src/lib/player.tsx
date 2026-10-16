@@ -28,6 +28,7 @@ import {
   WorkoutRecord,
   WorkoutSet,
 } from './game';
+import { claimQuests, Quest } from './quests';
 import { cancelReminders, setupReminders, syncReminders } from './reminders';
 
 const STORAGE_KEY = 'despertar:player';
@@ -37,6 +38,7 @@ export type SystemEvent = { id?: number } & (
   | { kind: 'achievement'; achievement: Achievement }
   | { kind: 'achievements'; count: number; xp: number }
   | { kind: 'penalty'; xpLost: number; days: number }
+  | { kind: 'quest'; quest: Quest }
 );
 
 type PlayerContextValue = {
@@ -90,11 +92,13 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(timer);
   }, [player]);
 
-  // Todo salvamento passa por aqui: desbloqueia conquistas e avisa level up / rank up.
+  // Todo salvamento passa por aqui: completa missões semanais/Dungeon, desbloqueia conquistas
+  // e avisa level up / rank up.
   const save = useCallback((changed: Player, extraEvents: SystemEvent[] = []) => {
     const before = playerRef.current;
-    const { player: next, unlocked } = unlockAchievements(changed);
-    const news: SystemEvent[] = [...extraEvents];
+    const { player: withQuests, claimed } = claimQuests(changed);
+    const { player: next, unlocked } = unlockAchievements(withQuests);
+    const news: SystemEvent[] = [...extraEvents, ...claimed.map((quest) => ({ kind: 'quest' as const, quest }))];
     if (unlocked.length > 2) {
       news.push({ kind: 'achievements', count: unlocked.length, xp: unlocked.reduce((sum, a) => sum + a.xp, 0) });
     } else {
@@ -155,6 +159,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       workout: null,
       workouts: [],
       meals: [],
+      quests: {},
       settings: DEFAULT_SETTINGS,
       achievements: {},
       lastCheckDay: today(),
@@ -348,6 +353,7 @@ function normalize(saved: any): Player {
     workout: null,
     workouts: [],
     meals: [],
+    quests: {},
     ...saved,
     achievements: {},
     // sem data de verificação (dados antigos): começa hoje, sem penalizar o passado

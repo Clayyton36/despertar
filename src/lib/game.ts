@@ -42,6 +42,8 @@ export type Player = {
   workouts: WorkoutRecord[];
   // refeições registradas (a missão Alimentação é calculada a partir delas)
   meals: MealRecord[];
+  // missões semanais e Dungeon já completadas, por semana (chave = segunda-feira)
+  quests: Record<string, string[]>;
   settings: Settings;
   // conquistas desbloqueadas (id -> quando) e último dia já verificado para penalidades
   achievements: Record<string, number>;
@@ -373,6 +375,7 @@ export type Achievement = { id: string; title: string; detail: string; icon: str
 const successes = (p: Player, hours: number) => p.fasts.some((f) => f.success && f.goalHours >= hours);
 const lostKg = (p: Player) => p.startWeightKg - currentWeight(p);
 const missionDays = (p: Player, id: string) => Object.values(p.completed).filter((ids) => ids.includes(id)).length;
+const dungeons = (p: Player) => Object.values(p.quests).filter((ids) => ids.includes('dungeon')).length;
 const rankAt = (p: Player, rank: string) => RANKS.findIndex((r) => r.rank === rankFromLevel(levelFromXp(p.xp))) >= RANKS.findIndex((r) => r.rank === rank);
 
 export const ACHIEVEMENTS: Achievement[] = [
@@ -389,6 +392,8 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'jejum-12', title: 'Primeiro Jejum', detail: 'Completar um jejum de 12h', icon: '⏳', xp: 20, test: (p) => successes(p, 12) },
   { id: 'jejum-16', title: 'Mestre do Jejum', detail: 'Completar um jejum de 16h', icon: '⌛', xp: 50, test: (p) => successes(p, 16) },
   { id: 'jejum-18', title: 'Jejum Lendário', detail: 'Completar um jejum de 18h', icon: '🏺', xp: 80, test: (p) => successes(p, 18) },
+  { id: 'dungeon-1', title: 'Caçador', detail: 'Completar a primeira Dungeon', icon: '🗡️', xp: 30, test: (p) => dungeons(p) >= 1 },
+  { id: 'dungeon-5', title: 'Caçador Veterano', detail: 'Completar 5 Dungeons', icon: '⚔️', xp: 100, test: (p) => dungeons(p) >= 5 },
   { id: 'treino-1', title: 'Primeiro Treino', detail: 'Finalizar um treino', icon: '🏋️', xp: 20, test: (p) => p.workouts.length >= 1 },
   { id: 'treino-10', title: 'Rato de Academia', detail: 'Finalizar 10 treinos', icon: '💪', xp: 50, test: (p) => p.workouts.length >= 10 },
   { id: 'treino-50', title: 'Máquina', detail: 'Finalizar 50 treinos', icon: '🦾', xp: 150, test: (p) => p.workouts.length >= 50 },

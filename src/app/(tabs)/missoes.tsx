@@ -5,6 +5,7 @@ import { ReactNode, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { DungeonPanel, WeeklyPanel } from '@/components/QuestPanels';
 import { SystemPanel } from '@/components/SystemPanel';
 import {
   amountText,
@@ -74,6 +75,9 @@ export default function Missoes() {
               : `Missão incompleta no fim do dia: -${PENALTY_PER_MISSION} XP por missão e a sequência quebra.`}
           </Text>
         </SystemPanel>
+
+        <DungeonPanel player={player} />
+        <WeeklyPanel player={player} />
       </ScrollView>
     </SafeAreaView>
   );
